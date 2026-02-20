@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum FlyCategory {
+  dry
+  nymph
+  streamer
+  emerger
+  saltwater
+  other
+}
+
+enum Difficulty {
+  beginner
+  intermediate
+  advanced
+}
+
+enum WaterType {
+  freshwater
+  saltwater
+  both
+}
+
+enum MaterialType {
+  hook
+  thread
+  tail
+  body
+  rib
+  thorax
+  wing
+  hackle
+  bead
+  weight
+  other
+}
+
+enum SubstitutionType {
+  equivalent
+  budget
+  aesthetic
+  availability
+}
+
+enum ResourceType {
+  video
+  blog
+  pdf
+}
+
+enum CommissionType {
+  percentage
+  flat
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model FlyPattern {
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String      @unique
+  slug        String      @unique
+  category    FlyCategory
+  difficulty  Difficulty
+  waterType   WaterType   @map("water_type")
+  description String      @db.Text
+  origin      String?     @db.Text
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  materials  FlyPatternMaterial[]
+  variations Variation[]
+  resources  Resource[]
+  feedback   Feedback[]
+
+  @@index([slug])
+  @@index([category])
+  @@index([difficulty])
+  @@index([waterType])
+  @@map("fly_patterns")
+}
+
+model Material {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String
+  type        MaterialType
+  description String?      @db.Text
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  flyPatternMaterials FlyPatternMaterial[]
+  substitutionsFrom   MaterialSubstitution[] @relation("SubstitutionFrom")
+  substitutionsTo     MaterialSubstitution[] @relation("SubstitutionTo")
+  affiliateLinks      AffiliateLink[]
+  variationOriginals  VariationOverride[]    @relation("VariationOriginal")
+  variationReplacements VariationOverride[]  @relation("VariationReplacement")
+
+  @@unique([name, type])
+  @@map("materials")
+}
+
+model FlyPatternMaterial {
+  id           String     @id @default(uuid()) @db.Uuid
+  flyPatternId String     @map("fly_pattern_id") @db.Uuid
+  materialId   String     @map("material_id") @db.Uuid
+  customColor  String?    @map("custom_color")
+  customSize   String?    @map("custom_size")
+  required     Boolean    @default(true)
+  position     Int
+
+  flyPattern   FlyPattern @relation(fields: [flyPatternId], references: [id], onDelete: Cascade)
+  material     Material   @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@index([flyPatternId])
+  @@index([materialId])
+  @@map("fly_pattern_materials")
+}
+
+model MaterialSubstitution {
+  id                   String           @id @default(uuid()) @db.Uuid
+  materialId           String           @map("material_id") @db.Uuid
+  substituteMaterialId String           @map("substitute_material_id") @db.Uuid
+  substitutionType     SubstitutionType @map("substitution_type")
+  notes                String           @db.Text
+
+  material             Material         @relation("SubstitutionFrom", fields: [materialId], references: [id], onDelete: Cascade)
+  substituteMaterial   Material         @relation("SubstitutionTo", fields: [substituteMaterialId], references: [id], onDelete: Cascade)
+
+  @@map("material_substitutions")
+}
+
+model Variation {
+  id           String     @id @default(uuid()) @db.Uuid
+  flyPatternId String     @map("fly_pattern_id") @db.Uuid
+  name         String
+  description  String     @db.Text
+
+  flyPattern   FlyPattern @relation(fields: [flyPatternId], references: [id], onDelete: Cascade)
+  overrides    VariationOverride[]
+
+  @@index([flyPatternId])
+  @@map("variations")
+}
+
+model VariationOverride {
+  id                    String    @id @default(uuid()) @db.Uuid
+  variationId           String    @map("variation_id") @db.Uuid
+  originalMaterialId    String    @map("original_material_id") @db.Uuid
+  replacementMaterialId String    @map("replacement_material_id") @db.Uuid
+
+  variation             Variation @relation(fields: [variationId], references: [id], onDelete: Cascade)
+  originalMaterial      Material  @relation("VariationOriginal", fields: [originalMaterialId], references: [id], onDelete: Cascade)
+  replacementMaterial   Material  @relation("VariationReplacement", fields: [replacementMaterialId], references: [id], onDelete: Cascade)
+
+  @@map("variation_overrides")
+}
+
+model Resource {
+  id           String       @id @default(uuid()) @db.Uuid
+  flyPatternId String       @map("fly_pattern_id") @db.Uuid
+  type         ResourceType
+  title        String
+  creatorName  String       @map("creator_name")
+  platform     String
+  url          String
+  qualityScore Int          @map("quality_score") @db.SmallInt
+
+  flyPattern   FlyPattern   @relation(fields: [flyPatternId], references: [id], onDelete: Cascade)
+
+  @@index([flyPatternId])
+  @@map("resources")
+}
+
+model AffiliateLink {
+  id             String         @id @default(uuid()) @db.Uuid
+  materialId     String         @map("material_id") @db.Uuid
+  retailer       String
+  url            String
+  commissionType CommissionType @map("commission_type")
+
+  material       Material       @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@index([materialId])
+  @@map("affiliate_links")
+}
+
+model Feedback {
+  id           String     @id @default(uuid()) @db.Uuid
+  flyPatternId String     @map("fly_pattern_id") @db.Uuid
+  helpful      Boolean
+  comment      String     @db.Text
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  flyPattern   FlyPattern @relation(fields: [flyPatternId], references: [id], onDelete: Cascade)
+
+  @@index([flyPatternId])
+  @@map("feedback")
+}
