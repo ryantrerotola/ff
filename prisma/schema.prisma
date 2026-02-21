@@ -62,7 +62,78 @@ enum CommissionType {
   flat
 }
 
-// ─── Models ──────────────────────────────────────────────────────────────────
+enum SourceType {
+  youtube
+  blog
+  pdf
+}
+
+enum StagedStatus {
+  discovered
+  scraped
+  extracted
+  normalized
+  approved
+  rejected
+  ingested
+}
+
+// ─── Pipeline Staging Models ────────────────────────────────────────────────
+
+model StagedSource {
+  id           String       @id @default(uuid()) @db.Uuid
+  sourceType   SourceType   @map("source_type")
+  url          String       @unique
+  title        String?
+  creatorName  String?      @map("creator_name")
+  platform     String?
+  rawContent   String?      @map("raw_content") @db.Text
+  patternQuery String       @map("pattern_query")
+  status       StagedStatus @default(discovered)
+  metadata     Json?        @db.JsonB
+  scrapedAt    DateTime?    @map("scraped_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  extractions StagedExtraction[]
+
+  @@index([status])
+  @@index([patternQuery])
+  @@map("staged_sources")
+}
+
+model StagedExtraction {
+  id              String       @id @default(uuid()) @db.Uuid
+  sourceId        String       @map("source_id") @db.Uuid
+  patternName     String       @map("pattern_name")
+  normalizedSlug  String       @map("normalized_slug")
+  extractedData   Json         @map("extracted_data") @db.JsonB
+  confidence      Float
+  status          StagedStatus @default(extracted)
+  reviewNotes     String?      @map("review_notes") @db.Text
+  createdAt       DateTime     @default(now()) @map("created_at")
+  reviewedAt      DateTime?    @map("reviewed_at")
+
+  source StagedSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([normalizedSlug])
+  @@index([status])
+  @@index([confidence])
+  @@map("staged_extractions")
+}
+
+model CanonicalMaterial {
+  id            String       @id @default(uuid()) @db.Uuid
+  canonicalName String       @unique @map("canonical_name")
+  materialType  MaterialType @map("material_type")
+  aliases       String[]
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  @@index([materialType])
+  @@map("canonical_materials")
+}
+
+// ─── Production Models ──────────────────────────────────────────────────────
 
 model FlyPattern {
   id          String      @id @default(uuid()) @db.Uuid
