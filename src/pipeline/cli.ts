@@ -295,10 +295,11 @@ async function cmdNormalize() {
   for (const group of groups) {
     if (group.length === 0) continue;
 
-    // Normalize materials in each extraction
-    const normalized = await Promise.all(
-      group.map((p) => normalizePatternMaterials(p))
-    );
+    // Normalize materials sequentially to avoid race conditions on canonical upserts
+    const normalized = [];
+    for (const p of group) {
+      normalized.push(await normalizePatternMaterials(p));
+    }
 
     // Build consensus
     const consensus = buildConsensus(normalized);
