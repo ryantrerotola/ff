@@ -139,10 +139,11 @@ function buildFieldConsensus(
  * Build material consensus across multiple sources.
  *
  * Strategy:
- * 1. Cluster similar materials across sources
- * 2. For each cluster, count how many sources include it
- * 3. Derive required/optional based on frequency
- * 4. Build tying order from positional consensus
+ * 1. Group materials by type across all sources
+ * 2. Determine how many entries per type a single source typically has
+ * 3. Cluster similar names within each type
+ * 4. Keep only the top N clusters (N = typical per-source count)
+ * 5. Excess clusters become substitution candidates, not duplicates
  */
 function buildMaterialConsensus(
   extractions: ExtractedPattern[]
@@ -182,6 +183,28 @@ function buildMaterialConsensus(
   const consensusMaterials: ConsensusMaterial[] = [];
 
   for (const [type, mats] of byType) {
+    // Determine how many entries of this type a single source typically has
+    // (the mode of per-source counts). E.g., if 3 sources each list 1 hook → slotsPerSource = 1
+    const countsPerSource = new Map<number, number>();
+    for (let s = 0; s < sourceCount; s++) {
+      const countForSource = mats.filter((m) => m.sourceIndex === s).length;
+      if (countForSource > 0) {
+        countsPerSource.set(
+          countForSource,
+          (countsPerSource.get(countForSource) ?? 0) + 1
+        );
+      }
+    }
+
+    let slotsPerSource = 1;
+    let bestFreq = 0;
+    for (const [count, freq] of countsPerSource) {
+      if (freq > bestFreq) {
+        bestFreq = freq;
+        slotsPerSource = count;
+      }
+    }
+
     // Cluster by name similarity
     const names = mats.map((m) => m.name);
     const uniqueNames = [...new Set(names)];
@@ -207,10 +230,24 @@ function buildMaterialConsensus(
       }
     }
 
-    // Build consensus for each group
-    for (const group of groups) {
-      const uniqueSources = new Set(group.members.map((m) => m.sourceIndex));
-      const freq = uniqueSources.size;
+    // Rank clusters by how many unique sources mention them (popularity)
+    const rankedGroups = groups
+      .map((group) => ({
+        ...group,
+        uniqueSources: new Set(group.members.map((m) => m.sourceIndex)).size,
+      }))
+      .sort((a, b) => b.uniqueSources - a.uniqueSources);
+
+    // Keep only top N clusters where N = typical slots per source
+    const keptGroups = rankedGroups.slice(0, slotsPerSource);
+
+    // Build consensus entry for each kept group
+    for (const group of keptGroups) {
+      const freq = group.uniqueSources;
+
+      // Pick the most common name (not just the first one)
+      const allGroupNames = group.members.map((m) => m.name);
+      const bestName = pickMostCommon(allGroupNames);
 
       // Pick the most common color
       const colors = group.members
@@ -234,7 +271,7 @@ function buildMaterialConsensus(
         group.members.length;
 
       consensusMaterials.push({
-        name: group.name,
+        name: bestName,
         type,
         color,
         size,
