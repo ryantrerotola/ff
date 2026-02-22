@@ -103,24 +103,58 @@ model NewsArticle {
   publishedAt DateTime @map("published_at")
   scrapedAt   DateTime @default(now()) @map("scraped_at")
 
+  comments NewsComment[]
+  votes    NewsVote[]
+
   @@index([publishedAt])
   @@index([scrapedAt])
   @@map("news_articles")
 }
 
+model NewsComment {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  newsArticleId String   @map("news_article_id") @db.Uuid
+  content       String   @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newsArticle NewsArticle @relation(fields: [newsArticleId], references: [id], onDelete: Cascade)
+
+  @@index([newsArticleId])
+  @@index([userId])
+  @@map("news_comments")
+}
+
+model NewsVote {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  newsArticleId String   @map("news_article_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newsArticle NewsArticle @relation(fields: [newsArticleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, newsArticleId])
+  @@index([newsArticleId])
+  @@map("news_votes")
+}
+
 // ─── User & Auth Models ─────────────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  username     String   @unique
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  displayName  String?  @map("display_name")
-  bio          String?  @db.Text
-  avatarUrl    String?  @map("avatar_url")
-  role         UserRole @default(user)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  username      String   @unique
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  displayName   String?  @map("display_name")
+  bio           String?  @db.Text
+  avatarUrl     String?  @map("avatar_url")
+  role          UserRole @default(user)
+  emailVerified Boolean  @default(false) @map("email_verified")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   sessions           Session[]
   comments           Comment[]
@@ -131,6 +165,16 @@ model User {
   sentMessages       DirectMessage[]        @relation("SentMessages")
   receivedMessages   DirectMessage[]        @relation("ReceivedMessages")
   submittedPatterns  UserSubmittedPattern[]
+  notifications      Notification[]
+  patternRatings     PatternRating[]
+  patternImages      PatternImage[]
+  newsComments       NewsComment[]
+  newsVotes          NewsVote[]
+  materialReviews    MaterialReview[]
+  hatchEntries       HatchEntry[]
+  followers          Follow[]               @relation("Followers")
+  following          Follow[]               @relation("Following")
+  passwordResets     PasswordResetToken[]
 
   @@map("users")
 }
@@ -149,15 +193,29 @@ model Session {
   @@map("sessions")
 }
 
+model PasswordResetToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@map("password_reset_tokens")
+}
+
 // ─── Community Models ───────────────────────────────────────────────────────
 
 model Comment {
-  id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @map("user_id") @db.Uuid
-  flyPatternId String   @map("fly_pattern_id") @db.Uuid
-  content      String   @db.Text
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  flyPatternId String    @map("fly_pattern_id") @db.Uuid
+  content      String    @db.Text
+  editedAt     DateTime? @map("edited_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   flyPattern FlyPattern @relation(fields: [flyPatternId], references: [id], onDelete: Cascade)
@@ -197,30 +255,78 @@ model SavedPattern {
   @@map("saved_patterns")
 }
 
-model ForumPost {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  title     String
-  content   String   @db.Text
-  pinned    Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+model PatternRating {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  flyPatternId String   @map("fly_pattern_id") @db.Uuid
+  rating       Int      @db.SmallInt
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  replies ForumReply[]
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flyPattern FlyPattern @relation(fields: [flyPatternId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, flyPatternId])
+  @@index([flyPatternId])
+  @@map("pattern_ratings")
+}
+
+model PatternImage {
+  id           String   @id @default(uuid()) @db.Uuid
+  flyPatternId String   @map("fly_pattern_id") @db.Uuid
+  url          String
+  caption      String?
+  isPrimary    Boolean  @default(false) @map("is_primary")
+  uploadedById String?  @map("uploaded_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  flyPattern FlyPattern @relation(fields: [flyPatternId], references: [id], onDelete: Cascade)
+  uploadedBy User?      @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([flyPatternId])
+  @@map("pattern_images")
+}
+
+model ForumCategory {
+  id          String @id @default(uuid()) @db.Uuid
+  name        String @unique
+  slug        String @unique
+  description String?
+  sortOrder   Int    @default(0) @map("sort_order")
+
+  posts ForumPost[]
+
+  @@map("forum_categories")
+}
+
+model ForumPost {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  categoryId String?   @map("category_id") @db.Uuid
+  title      String
+  content    String    @db.Text
+  pinned     Boolean   @default(false)
+  editedAt   DateTime? @map("edited_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category ForumCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  replies  ForumReply[]
 
   @@index([userId])
+  @@index([categoryId])
   @@index([createdAt])
   @@map("forum_posts")
 }
 
 model ForumReply {
-  id        String   @id @default(uuid()) @db.Uuid
-  postId    String   @map("post_id") @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  content   String   @db.Text
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        String    @id @default(uuid()) @db.Uuid
+  postId    String    @map("post_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  content   String    @db.Text
+  editedAt  DateTime? @map("edited_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
   post ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -265,6 +371,85 @@ model UserSubmittedPattern {
   @@index([userId])
   @@index([status])
   @@map("user_submitted_patterns")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      String
+  title     String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model Follow {
+  id          String   @id @default(uuid()) @db.Uuid
+  followerId  String   @map("follower_id") @db.Uuid
+  followingId String   @map("following_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+model MaterialReview {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  materialId String   @map("material_id") @db.Uuid
+  rating     Int      @db.SmallInt
+  title      String
+  content    String   @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@index([materialId])
+  @@index([userId])
+  @@map("material_reviews")
+}
+
+// ─── Hatch Chart ────────────────────────────────────────────────────────────
+
+model HatchEntry {
+  id            String   @id @default(uuid()) @db.Uuid
+  waterBody     String   @map("water_body")
+  region        String
+  state         String?
+  month         Int      @db.SmallInt
+  species       String
+  insectName    String   @map("insect_name")
+  insectType    String   @map("insect_type")
+  flyPatternId  String?  @map("fly_pattern_id") @db.Uuid
+  patternName   String   @map("pattern_name")
+  timeOfDay     String?  @map("time_of_day")
+  notes         String?  @db.Text
+  submittedById String?  @map("submitted_by_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  flyPattern  FlyPattern? @relation(fields: [flyPatternId], references: [id], onDelete: SetNull)
+  submittedBy User?       @relation(fields: [submittedById], references: [id], onDelete: SetNull)
+
+  @@index([waterBody])
+  @@index([region])
+  @@index([month])
+  @@index([species])
+  @@map("hatch_entries")
 }
 
 // ─── Pipeline Staging Models ────────────────────────────────────────────────
@@ -343,6 +528,9 @@ model FlyPattern {
   comments      Comment[]
   likes         Like[]
   savedPatterns SavedPattern[]
+  ratings       PatternRating[]
+  images        PatternImage[]
+  hatchEntries  HatchEntry[]
 
   @@index([slug])
   @@index([category])
@@ -359,12 +547,13 @@ model Material {
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
-  flyPatternMaterials FlyPatternMaterial[]
-  substitutionsFrom   MaterialSubstitution[] @relation("SubstitutionFrom")
-  substitutionsTo     MaterialSubstitution[] @relation("SubstitutionTo")
-  affiliateLinks      AffiliateLink[]
-  variationOriginals  VariationOverride[]    @relation("VariationOriginal")
-  variationReplacements VariationOverride[]  @relation("VariationReplacement")
+  flyPatternMaterials   FlyPatternMaterial[]
+  substitutionsFrom     MaterialSubstitution[] @relation("SubstitutionFrom")
+  substitutionsTo       MaterialSubstitution[] @relation("SubstitutionTo")
+  affiliateLinks        AffiliateLink[]
+  variationOriginals    VariationOverride[]    @relation("VariationOriginal")
+  variationReplacements VariationOverride[]    @relation("VariationReplacement")
+  reviews               MaterialReview[]
 
   @@unique([name, type])
   @@map("materials")

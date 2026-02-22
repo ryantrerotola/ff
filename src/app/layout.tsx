@@ -72,6 +72,12 @@ export default function RootLayout({
               >
                 Forum
               </Link>
+              <Link
+                href="/hatch"
+                className="text-sm font-medium text-gray-600 hover:text-gray-900"
+              >
+                Hatch Chart
+              </Link>
               <UserMenu />
             </nav>
           </div>

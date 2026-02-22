@@ -17,6 +17,7 @@ import { ResourceList } from "@/components/ResourceList";
 import { FeedbackForm } from "@/components/FeedbackForm";
 import { AffiliateDisclosure } from "@/components/AffiliateDisclosure";
 import { PatternActions } from "@/components/PatternActions";
+import { StarRating } from "@/components/StarRating";
 import { CommentSection } from "@/components/CommentSection";
 import { JsonLd } from "@/components/JsonLd";
 
@@ -122,8 +123,9 @@ export default async function PatternPage({ params }: PatternPageProps) {
             </p>
           )}
 
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-4">
             <PatternActions flyPatternId={pattern.id} />
+            <StarRating flyPatternId={pattern.id} />
           </div>
         </header>
 

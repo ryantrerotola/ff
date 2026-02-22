@@ -88,6 +88,17 @@ export const submitPatternSchema = z.object({
   ),
 });
 
+// ─── Password reset schemas ────────────────────────────────────────────────
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().uuid(),
+  password: z.string().min(8).max(128),
+});
+
 export type PatternSearchInput = z.infer<typeof patternSearchSchema>;
 export type FeedbackFormInput = z.infer<typeof feedbackSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;

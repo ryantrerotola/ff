@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+
+interface ForumCategory {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 interface ForumPostUser {
   id: string;
@@ -16,6 +22,7 @@ interface ForumPost {
   pinned: boolean;
   createdAt: string;
   user: ForumPostUser;
+  category: { id: string; name: string; slug: string } | null;
   _count: { replies: number };
 }
 
@@ -31,17 +38,41 @@ export default function ForumPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [categories, setCategories] = useState<ForumCategory[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
 
   useEffect(() => {
+    fetch("/api/forum/categories")
+      .then((r) => r.json())
+      .then(setCategories)
+      .catch(() => {});
+  }, []);
+
+  const fetchPosts = useCallback(() => {
     setLoading(true);
-    fetch(`/api/forum?page=${page}`)
+    const params = new URLSearchParams({ page: String(page) });
+    if (search) params.set("search", search);
+    if (selectedCategory) params.set("categoryId", selectedCategory);
+    fetch(`/api/forum?${params}`)
       .then((r) => r.json())
       .then((data: ForumResponse) => {
         setPosts(data.data);
         setTotalPages(data.totalPages);
       })
       .finally(() => setLoading(false));
-  }, [page]);
+  }, [page, search, selectedCategory]);
+
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setPage(1);
+    setSearch(searchInput);
+  }
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
@@ -55,6 +86,57 @@ export default function ForumPage() {
         </Link>
       </div>
 
+      {/* Search & Category filter */}
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search posts..."
+            className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:w-56"
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
+          >
+            Search
+          </button>
+        </form>
+
+        {categories.length > 0 && (
+          <select
+            value={selectedCategory}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          >
+            <option value="">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {(search || selectedCategory) && (
+          <button
+            onClick={() => {
+              setSearch("");
+              setSearchInput("");
+              setSelectedCategory("");
+              setPage(1);
+            }}
+            className="text-sm text-gray-500 hover:text-gray-700"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
       {loading ? (
         <div className="mt-8 space-y-4">
           {[1, 2, 3].map((i) => (
@@ -66,7 +148,9 @@ export default function ForumPage() {
         </div>
       ) : posts.length === 0 ? (
         <p className="mt-8 text-center text-gray-500">
-          No posts yet. Start a discussion!
+          {search || selectedCategory
+            ? "No posts matching your filters."
+            : "No posts yet. Start a discussion!"}
         </p>
       ) : (
         <div className="mt-6 divide-y divide-gray-200">
@@ -74,7 +158,7 @@ export default function ForumPage() {
             <Link
               key={post.id}
               href={`/forum/${post.id}`}
-              className="block py-4 hover:bg-gray-50 -mx-4 px-4 rounded-md"
+              className="-mx-4 block rounded-md px-4 py-4 hover:bg-gray-50"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
@@ -86,9 +170,16 @@ export default function ForumPage() {
                     )}
                     {post.title}
                   </h2>
-                  <p className="mt-1 truncate text-sm text-gray-500">
-                    {post.content}
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    {post.category && (
+                      <span className="inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+                        {post.category.name}
+                      </span>
+                    )}
+                    <p className="truncate text-sm text-gray-500">
+                      {post.content}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex flex-shrink-0 flex-col items-end gap-1 text-xs text-gray-500">
                   <span>{post._count.replies} replies</span>

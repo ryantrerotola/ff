@@ -10,20 +10,35 @@ export async function GET(request: NextRequest) {
     50,
   );
   const offset = (page - 1) * limit;
+  const search = request.nextUrl.searchParams.get("search") ?? "";
+  const categoryId = request.nextUrl.searchParams.get("categoryId");
+
+  const where: Record<string, unknown> = {};
+  if (search) {
+    where.OR = [
+      { title: { contains: search, mode: "insensitive" } },
+      { content: { contains: search, mode: "insensitive" } },
+    ];
+  }
+  if (categoryId) {
+    where.categoryId = categoryId;
+  }
 
   const [posts, total] = await Promise.all([
     prisma.forumPost.findMany({
+      where,
       include: {
         user: {
           select: { id: true, username: true, displayName: true, avatarUrl: true },
         },
+        category: { select: { id: true, name: true, slug: true } },
         _count: { select: { replies: true } },
       },
       orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
       skip: offset,
       take: limit,
     }),
-    prisma.forumPost.count(),
+    prisma.forumPost.count({ where }),
   ]);
 
   return NextResponse.json({
@@ -56,6 +71,7 @@ export async function POST(request: Request) {
       userId: user.id,
       title: parsed.data.title,
       content: parsed.data.content,
+      categoryId: body.categoryId || null,
     },
     include: {
       user: {

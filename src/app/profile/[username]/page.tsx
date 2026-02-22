@@ -49,6 +49,11 @@ export default function ProfilePage() {
   const params = useParams<{ username: string }>();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/users/${params.username}`)
@@ -56,10 +61,41 @@ export default function ProfilePage() {
         if (!r.ok) throw new Error("Not found");
         return r.json();
       })
-      .then(setProfile)
+      .then((data) => {
+        setProfile(data);
+        // Fetch follow state
+        fetch(`/api/follow?userId=${data.id}`)
+          .then((r) => r.json())
+          .then((f) => {
+            setFollowerCount(f.followersCount ?? 0);
+            setFollowingCount(f.followingCount ?? 0);
+            setIsFollowing(f.isFollowing ?? false);
+          });
+      })
       .catch(() => setProfile(null))
       .finally(() => setLoading(false));
+
+    // Get current user
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : { user: null }))
+      .then((data) => setCurrentUserId(data.user?.id ?? null));
   }, [params.username]);
+
+  async function toggleFollow() {
+    if (!profile) return;
+    setFollowLoading(true);
+    const res = await fetch("/api/follow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: profile.id }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setIsFollowing(data.isFollowing);
+      setFollowerCount((c) => c + (data.isFollowing ? 1 : -1));
+    }
+    setFollowLoading(false);
+  }
 
   if (loading) {
     return (
@@ -81,6 +117,8 @@ export default function ProfilePage() {
     );
   }
 
+  const isOwnProfile = currentUserId === profile.id;
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
@@ -88,7 +126,7 @@ export default function ProfilePage() {
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-100 text-2xl font-bold text-brand-700">
           {(profile.displayName || profile.username)[0]?.toUpperCase()}
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">
             {profile.displayName || profile.username}
           </h1>
@@ -99,17 +137,42 @@ export default function ProfilePage() {
           <p className="mt-1 text-xs text-gray-400">
             Joined {new Date(profile.createdAt).toLocaleDateString()}
           </p>
-          <Link
-            href={`/messages/${profile.id}`}
-            className="mt-2 inline-block rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
-          >
-            Message
-          </Link>
+          <div className="mt-3 flex items-center gap-3">
+            {!isOwnProfile && (
+              <>
+                <button
+                  onClick={toggleFollow}
+                  disabled={followLoading}
+                  className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
+                    isFollowing
+                      ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                      : "bg-brand-600 text-white hover:bg-brand-700"
+                  } disabled:opacity-50`}
+                >
+                  {isFollowing ? "Following" : "Follow"}
+                </button>
+                <Link
+                  href={`/messages/${profile.id}`}
+                  className="rounded-md border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Message
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="mt-6 grid grid-cols-4 gap-4 rounded-lg border border-gray-200 p-4">
+      <div className="mt-6 grid grid-cols-2 gap-4 rounded-lg border border-gray-200 p-4 sm:grid-cols-6">
+        <div className="text-center">
+          <div className="text-lg font-bold text-gray-900">{followerCount}</div>
+          <div className="text-xs text-gray-500">Followers</div>
+        </div>
+        <div className="text-center">
+          <div className="text-lg font-bold text-gray-900">{followingCount}</div>
+          <div className="text-xs text-gray-500">Following</div>
+        </div>
         <div className="text-center">
           <div className="text-lg font-bold text-gray-900">
             {profile._count.comments}

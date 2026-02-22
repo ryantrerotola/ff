@@ -15,11 +15,19 @@ export default function UserMenu() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : { user: null }))
-      .then((data) => setUser(data.user))
+      .then((data) => {
+        setUser(data.user);
+        if (data.user) {
+          fetch("/api/notifications")
+            .then((r) => (r.ok ? r.json() : { unreadCount: 0 }))
+            .then((n) => setUnreadCount(n.unreadCount ?? 0));
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -55,7 +63,22 @@ export default function UserMenu() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center gap-2">
+      {/* Notification bell */}
+      <Link
+        href="/notifications"
+        className="relative rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+      >
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+        </svg>
+        {unreadCount > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </Link>
+
       <button
         onClick={() => setMenuOpen(!menuOpen)}
         className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
@@ -72,7 +95,7 @@ export default function UserMenu() {
             className="fixed inset-0 z-10"
             onClick={() => setMenuOpen(false)}
           />
-          <div className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+          <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
             <Link
               href="/my-stuff"
               onClick={() => setMenuOpen(false)}
@@ -93,6 +116,18 @@ export default function UserMenu() {
               className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >
               Messages
+            </Link>
+            <Link
+              href="/notifications"
+              onClick={() => setMenuOpen(false)}
+              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              Notifications
+              {unreadCount > 0 && (
+                <span className="ml-2 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">
+                  {unreadCount}
+                </span>
+              )}
             </Link>
             <Link
               href="/patterns/submit"
