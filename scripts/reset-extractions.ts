@@ -11,8 +11,8 @@ async function main() {
 
   // Also clean up production fly pattern materials so re-ingest doesn't conflict
   const deletedMaterials = await prisma.flyPatternMaterial.deleteMany({});
-  const deletedVariations = await prisma.variation.deleteMany({});
-  const deletedResources = await prisma.resource.deleteMany({});
+  await prisma.variation.deleteMany({});
+  await prisma.resource.deleteMany({});
   const deletedPatterns = await prisma.flyPattern.deleteMany({});
 
   console.log(`Cleaned production tables: ${deletedPatterns.count} patterns, ${deletedMaterials.count} materials`);

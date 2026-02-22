@@ -16,6 +16,8 @@ import { VariationSection } from "@/components/VariationSection";
 import { ResourceList } from "@/components/ResourceList";
 import { FeedbackForm } from "@/components/FeedbackForm";
 import { AffiliateDisclosure } from "@/components/AffiliateDisclosure";
+import { PatternActions } from "@/components/PatternActions";
+import { CommentSection } from "@/components/CommentSection";
 import { JsonLd } from "@/components/JsonLd";
 
 interface PatternPageProps {
@@ -119,6 +121,10 @@ export default async function PatternPage({ params }: PatternPageProps) {
               <span className="font-medium">Origin:</span> {pattern.origin}
             </p>
           )}
+
+          <div className="mt-4">
+            <PatternActions flyPatternId={pattern.id} />
+          </div>
         </header>
 
         {/* Affiliate disclosure */}
@@ -141,6 +147,11 @@ export default async function PatternPage({ params }: PatternPageProps) {
         {/* Resources */}
         <div className="mb-10">
           <ResourceList resources={pattern.resources} />
+        </div>
+
+        {/* Comments */}
+        <div className="mb-10">
+          <CommentSection flyPatternId={pattern.id} />
         </div>
 
         {/* Feedback */}

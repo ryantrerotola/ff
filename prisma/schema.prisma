@@ -78,6 +78,176 @@ enum StagedStatus {
   ingested
 }
 
+enum UserRole {
+  user
+  admin
+}
+
+enum SubmissionStatus {
+  pending
+  approved
+  rejected
+}
+
+// ─── User & Auth Models ─────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  username     String   @unique
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String?  @map("display_name")
+  bio          String?  @db.Text
+  avatarUrl    String?  @map("avatar_url")
+  role         UserRole @default(user)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  sessions           Session[]
+  comments           Comment[]
+  likes              Like[]
+  savedPatterns      SavedPattern[]
+  forumPosts         ForumPost[]
+  forumReplies       ForumReply[]
+  sentMessages       DirectMessage[]        @relation("SentMessages")
+  receivedMessages   DirectMessage[]        @relation("ReceivedMessages")
+  submittedPatterns  UserSubmittedPattern[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ─── Community Models ───────────────────────────────────────────────────────
+
+model Comment {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  flyPatternId String   @map("fly_pattern_id") @db.Uuid
+  content      String   @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flyPattern FlyPattern @relation(fields: [flyPatternId], references: [id], onDelete: Cascade)
+
+  @@index([flyPatternId])
+  @@index([userId])
+  @@map("comments")
+}
+
+model Like {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  flyPatternId String   @map("fly_pattern_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flyPattern FlyPattern @relation(fields: [flyPatternId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, flyPatternId])
+  @@index([flyPatternId])
+  @@index([userId])
+  @@map("likes")
+}
+
+model SavedPattern {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  flyPatternId String   @map("fly_pattern_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flyPattern FlyPattern @relation(fields: [flyPatternId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, flyPatternId])
+  @@index([flyPatternId])
+  @@index([userId])
+  @@map("saved_patterns")
+}
+
+model ForumPost {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  title     String
+  content   String   @db.Text
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies ForumReply[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("forum_posts")
+}
+
+model ForumReply {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  post ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
+  @@map("forum_replies")
+}
+
+model DirectMessage {
+  id         String   @id @default(uuid()) @db.Uuid
+  senderId   String   @map("sender_id") @db.Uuid
+  receiverId String   @map("receiver_id") @db.Uuid
+  content    String   @db.Text
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+  @@map("direct_messages")
+}
+
+model UserSubmittedPattern {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  name        String
+  category    FlyCategory
+  difficulty  Difficulty
+  waterType   WaterType        @map("water_type")
+  description String           @db.Text
+  materials   Json             @db.JsonB
+  status      SubmissionStatus @default(pending)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("user_submitted_patterns")
+}
+
 // ─── Pipeline Staging Models ────────────────────────────────────────────────
 
 model StagedSource {
@@ -147,10 +317,13 @@ model FlyPattern {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  materials  FlyPatternMaterial[]
-  variations Variation[]
-  resources  Resource[]
-  feedback   Feedback[]
+  materials     FlyPatternMaterial[]
+  variations    Variation[]
+  resources     Resource[]
+  feedback      Feedback[]
+  comments      Comment[]
+  likes         Like[]
+  savedPatterns SavedPattern[]
 
   @@index([slug])
   @@index([category])

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from "@/lib/constants";
+import UserMenu from "@/components/UserMenu";
 
 export const metadata: Metadata = {
   title: {
@@ -52,13 +53,20 @@ export default function RootLayout({
                 {APP_NAME}
               </span>
             </Link>
-            <nav>
+            <nav className="flex items-center gap-4">
               <Link
                 href="/"
                 className="text-sm font-medium text-gray-600 hover:text-gray-900"
               >
-                Browse Patterns
+                Patterns
               </Link>
+              <Link
+                href="/forum"
+                className="text-sm font-medium text-gray-600 hover:text-gray-900"
+              >
+                Forum
+              </Link>
+              <UserMenu />
             </nav>
           </div>
         </header>
