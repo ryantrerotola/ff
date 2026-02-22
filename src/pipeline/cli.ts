@@ -72,11 +72,9 @@ async function cmdDiscover(args: string[]) {
           },
         });
 
-        // If we have a transcript, store it immediately
-        if (result.transcript) {
-          const content = buildYouTubeContent(result);
-          await updateStagedSourceContent(source.id, content);
-        }
+        // Store title + description (and transcript if available) as content
+        const content = buildYouTubeContent(result);
+        await updateStagedSourceContent(source.id, content);
 
         totalSources++;
       }
@@ -165,7 +163,7 @@ async function cmdScrape() {
 
       try {
         if (source.sourceType === "youtube") {
-          // Try to fetch transcript for YouTube videos without content
+          // Try to fetch transcript for YouTube videos that only have title/description
           const metadata = source.metadata as { videoId?: string } | null;
           const videoId = metadata?.videoId;
 
@@ -174,9 +172,15 @@ async function cmdScrape() {
             const transcript = await fetchTranscript(videoId);
 
             if (transcript) {
+              // Re-build content with transcript included
               const content = `Title: ${source.title ?? ""}\nCreator: ${source.creatorName ?? ""}\n\nTranscript:\n${transcript}`;
               await updateStagedSourceContent(source.id, content);
               scraped++;
+            } else if (source.rawContent) {
+              // Already has title/description content from discovery — mark as scraped
+              await updateStagedSourceContent(source.id, source.rawContent);
+              scraped++;
+              log.info("No transcript, using description content", { videoId });
             } else {
               failed++;
             }

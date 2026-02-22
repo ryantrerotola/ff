@@ -291,8 +291,10 @@ export function scoreYouTubeResult(result: RawYouTubeResult): number {
   if (titleLower.includes("step by step")) score += 5;
   if (titleLower.includes("materials")) score += 3;
 
-  // Known quality creators
+  // Known quality creators — trusted channels that produce accurate, detailed
+  // fly tying content. This list boosts relevance scoring but does not limit discovery.
   const knownCreators = [
+    // Tier 1: Prolific, highly trusted instructional channels
     "tim flagler",
     "tightline",
     "davie mcphail",
@@ -305,6 +307,28 @@ export function scoreYouTubeResult(result: RawYouTubeResult): number {
     "cheech",
     "curtis fry",
     "charlie craven",
+    // Tier 2: Well-known fly tying / fly fishing educators
+    "troutbitten",
+    "mad river outfitters",
+    "orvis",
+    "flylords",
+    "dressed irons",
+    "piscator flies",
+    "gunnar brammer",
+    "andrew grillos",
+    "ants fly fishing",
+    "cotter's fly shop",
+    "rio products",
+    "loon outdoors",
+    "trident fly fishing",
+    "the new fly fisher",
+    "postfly",
+    "fatties on the fly",
+    "fly tying 123",
+    "steve parrott",
+    "hans stephenson",
+    "matt grobert",
+    "al & gretchen beatty",
   ];
   const channelLower = result.channelTitle.toLowerCase();
   if (knownCreators.some((c) => channelLower.includes(c))) score += 15;
