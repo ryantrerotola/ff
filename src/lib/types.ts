@@ -8,6 +8,8 @@ import type {
   Resource,
   AffiliateLink,
   Feedback,
+  TyingStep,
+  PatternImage,
   FlyCategory,
   Difficulty,
   WaterType,
@@ -24,6 +26,8 @@ export type {
   Resource,
   AffiliateLink,
   Feedback,
+  TyingStep,
+  PatternImage,
   FlyCategory,
   Difficulty,
   WaterType,
@@ -56,6 +60,8 @@ export interface FlyPatternDetail extends FlyPattern {
   variations: VariationWithOverrides[];
   resources: Resource[];
   feedback: Feedback[];
+  tyingSteps: TyingStep[];
+  images: (PatternImage & { uploadedBy: { username: string } | null })[];
 }
 
 export interface FlyPatternListItem

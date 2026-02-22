@@ -19,10 +19,13 @@ import { AffiliateDisclosure } from "@/components/AffiliateDisclosure";
 import { PatternActions } from "@/components/PatternActions";
 import { StarRating } from "@/components/StarRating";
 import { CommentSection } from "@/components/CommentSection";
+import { TyingSteps } from "@/components/TyingSteps";
 import { JsonLd } from "@/components/JsonLd";
 import { ReportButton } from "@/components/ReportButton";
 import { SaveOfflineButton } from "@/components/SaveOfflineButton";
 import { PrintButton } from "@/components/PrintButton";
+import { SimilarPatterns } from "@/components/SimilarPatterns";
+import { PhotoGallery } from "@/components/PhotoGallery";
 
 interface PatternPageProps {
   params: Promise<{ slug: string }>;
@@ -149,6 +152,13 @@ export default async function PatternPage({ params }: PatternPageProps) {
           </div>
         </header>
 
+        {/* Photo Gallery */}
+        {pattern.images.length > 0 && (
+          <div className="mb-10">
+            <PhotoGallery flyPatternId={pattern.id} images={pattern.images} />
+          </div>
+        )}
+
         {/* Affiliate disclosure */}
         {hasAffiliateLinks && (
           <div className="mb-8">
@@ -160,6 +170,13 @@ export default async function PatternPage({ params }: PatternPageProps) {
         <div className="mb-10">
           <MaterialList materials={pattern.materials} />
         </div>
+
+        {/* Tying Instructions */}
+        {pattern.tyingSteps.length > 0 && (
+          <div className="mb-10">
+            <TyingSteps steps={pattern.tyingSteps} />
+          </div>
+        )}
 
         {/* Variations */}
         <div className="mb-10">
@@ -179,6 +196,15 @@ export default async function PatternPage({ params }: PatternPageProps) {
         {/* Feedback */}
         <div className="mb-10">
           <FeedbackForm flyPatternId={pattern.id} />
+        </div>
+
+        {/* Similar Patterns */}
+        <div className="mb-10">
+          <SimilarPatterns
+            flyPatternId={pattern.id}
+            category={pattern.category}
+            difficulty={pattern.difficulty}
+          />
         </div>
       </article>
     </>

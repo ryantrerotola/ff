@@ -50,9 +50,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="flex min-h-screen flex-col bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+      <body className="flex min-h-screen flex-col bg-gray-50 text-gray-900 print:bg-white print:text-black dark:bg-gray-950 dark:text-gray-100">
         <ThemeProvider>
-          <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+          <header className="border-b border-gray-200 bg-white print:hidden dark:border-gray-800 dark:bg-gray-900">
             <div className="safe-top mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
               <Link href="/" className="flex items-center gap-2">
                 <svg
@@ -97,6 +97,12 @@ export default function RootLayout({
                 >
                   Hatch Chart
                 </Link>
+                <Link
+                  href="/fly-box"
+                  className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                >
+                  Fly Box
+                </Link>
                 <UserMenu />
               </nav>
               <div className="md:hidden">
@@ -107,7 +113,7 @@ export default function RootLayout({
 
           <main className="flex-1 pb-16 md:pb-0">{children}</main>
 
-          <footer className="hidden border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 md:block">
+          <footer className="hidden border-t border-gray-200 bg-white print:hidden dark:border-gray-800 dark:bg-gray-900 md:block">
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
               <div className="text-center text-sm text-gray-500 dark:text-gray-400">
                 <p>
@@ -122,7 +128,9 @@ export default function RootLayout({
             </div>
           </footer>
 
-          <MobileNav />
+          <div className="print:hidden">
+            <MobileNav />
+          </div>
         </ThemeProvider>
       </body>
     </html>

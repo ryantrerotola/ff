@@ -4,6 +4,7 @@ import { patternSearchSchema } from "@/lib/validation";
 import { PatternList } from "@/components/PatternList";
 import { PatternFilters } from "@/components/PatternFilters";
 import { Pagination } from "@/components/Pagination";
+import { SeasonalRecommendations } from "@/components/SeasonalRecommendations";
 import { APP_NAME } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
       <Suspense fallback={<div className="h-32" />}>
         <PatternFilters />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <SeasonalRecommendations />
       </Suspense>
 
       <PatternList patterns={result.data} />

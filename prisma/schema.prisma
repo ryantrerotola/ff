@@ -177,6 +177,8 @@ model User {
   passwordResets     PasswordResetToken[]
   contentReports     ContentReport[]
   oauthAccounts      OAuthAccount[]
+  userMaterials      UserMaterial[]
+  challengeEntries   ChallengeEntry[]
 
   @@map("users")
 }
@@ -550,6 +552,8 @@ model FlyPattern {
   ratings       PatternRating[]
   images        PatternImage[]
   hatchEntries  HatchEntry[]
+  tyingSteps    TyingStep[]
+  challenges    TyingChallenge[]
 
   @@index([slug])
   @@index([category])
@@ -573,6 +577,7 @@ model Material {
   variationOriginals    VariationOverride[]    @relation("VariationOriginal")
   variationReplacements VariationOverride[]    @relation("VariationReplacement")
   reviews               MaterialReview[]
+  userMaterials         UserMaterial[]
 
   @@unique([name, type])
   @@map("materials")
@@ -721,6 +726,80 @@ model ContentReport {
   @@index([status])
   @@index([reporterId])
   @@map("content_reports")
+}
+
+// ─── Tying Steps ───────────────────────────────────────────────────────────
+
+model TyingStep {
+  id           String     @id @default(uuid()) @db.Uuid
+  flyPatternId String     @map("fly_pattern_id") @db.Uuid
+  position     Int
+  title        String
+  instruction  String     @db.Text
+  imageUrl     String?    @map("image_url")
+  tip          String?    @db.Text
+
+  flyPattern   FlyPattern @relation(fields: [flyPatternId], references: [id], onDelete: Cascade)
+
+  @@index([flyPatternId])
+  @@map("tying_steps")
+}
+
+// ─── User Material Inventory ───────────────────────────────────────────────
+
+model UserMaterial {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  materialId String   @map("material_id") @db.Uuid
+  quantity   String?
+  notes      String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, materialId])
+  @@index([userId])
+  @@index([materialId])
+  @@map("user_materials")
+}
+
+// ─── Tying Challenges ──────────────────────────────────────────────────────
+
+model TyingChallenge {
+  id           String     @id @default(uuid()) @db.Uuid
+  title        String
+  description  String     @db.Text
+  flyPatternId String?    @map("fly_pattern_id") @db.Uuid
+  month        Int        @db.SmallInt
+  year         Int        @db.SmallInt
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  flyPattern FlyPattern?     @relation(fields: [flyPatternId], references: [id], onDelete: SetNull)
+  entries    ChallengeEntry[]
+
+  @@unique([month, year])
+  @@index([active])
+  @@map("tying_challenges")
+}
+
+model ChallengeEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  challengeId String   @map("challenge_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  imageUrl    String   @map("image_url")
+  caption     String?  @db.Text
+  votes       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  challenge TyingChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, userId])
+  @@index([challengeId])
+  @@index([userId])
+  @@map("challenge_entries")
 }
 
 // ─── Rate Limiting ──────────────────────────────────────────────────────────

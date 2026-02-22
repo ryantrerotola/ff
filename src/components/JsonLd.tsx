@@ -17,16 +17,25 @@ export function JsonLd({ pattern }: JsonLdProps) {
       name: pm.material.name,
       ...(pm.customColor ? { color: pm.customColor } : {}),
     })),
-    step: pattern.materials
-      .filter((pm) => pm.required)
-      .map((pm, index) => ({
-        "@type": "HowToStep",
-        position: index + 1,
-        name: `Add ${pm.material.type}: ${pm.material.name}`,
-        text: pm.customColor
-          ? `Use ${pm.material.name} in ${pm.customColor}`
-          : `Use ${pm.material.name}`,
-      })),
+    step:
+      pattern.tyingSteps && pattern.tyingSteps.length > 0
+        ? pattern.tyingSteps.map((s, i) => ({
+            "@type": "HowToStep",
+            position: i + 1,
+            name: s.title,
+            text: s.instruction,
+            ...(s.imageUrl ? { image: s.imageUrl } : {}),
+          }))
+        : pattern.materials
+            .filter((pm) => pm.required)
+            .map((pm, index) => ({
+              "@type": "HowToStep",
+              position: index + 1,
+              name: `Add ${pm.material.type}: ${pm.material.name}`,
+              text: pm.customColor
+                ? `Use ${pm.material.name} in ${pm.customColor}`
+                : `Use ${pm.material.name}`,
+            })),
   };
 
   return (

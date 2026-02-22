@@ -23,10 +23,22 @@ export default function AdminLayout({
           </div>
           <nav className="flex items-center gap-4">
             <Link
+              href="/admin"
+              className="text-sm font-medium text-gray-600 hover:text-gray-900"
+            >
+              Dashboard
+            </Link>
+            <Link
               href="/admin/review"
               className="text-sm font-medium text-gray-600 hover:text-gray-900"
             >
               Review Queue
+            </Link>
+            <Link
+              href="/admin/moderation"
+              className="text-sm font-medium text-gray-600 hover:text-gray-900"
+            >
+              Moderation
             </Link>
           </nav>
         </div>

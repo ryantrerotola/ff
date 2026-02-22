@@ -776,14 +776,237 @@ async function main() {
     ],
   });
 
+  // ─── Tying Steps ──────────────────────────────────────────────────────────
+
+  await prisma.tyingStep.createMany({
+    data: [
+      {
+        flyPatternId: woollyBugger.id,
+        position: 1,
+        title: "Secure the hook and add weight",
+        instruction:
+          "Place the hook in the vise. If adding weight, wrap 10-15 turns of lead wire around the hook shank, starting behind the eye and stopping at the midpoint. Push the wraps toward the center of the shank.",
+        tip: "Leave room behind the eye for the hackle tie-off and a neat head.",
+      },
+      {
+        flyPatternId: woollyBugger.id,
+        position: 2,
+        title: "Start the thread and tie in the tail",
+        instruction:
+          "Start your thread behind the eye and wrap back to the bend of the hook. Select a marabou plume about one shank length long. Tie it in at the bend, with the tips extending past the hook. Wrap forward over the butts to create a smooth underbody.",
+        tip: "Wet your fingers and pinch the marabou to align the fibers before tying in. The tail should be roughly the same length as the hook shank.",
+      },
+      {
+        flyPatternId: woollyBugger.id,
+        position: 3,
+        title: "Tie in the hackle and chenille",
+        instruction:
+          "At the base of the tail, tie in a saddle hackle feather by the tip, with the shiny side facing you. Then tie in a piece of medium chenille at the same point.",
+        tip: "Stripping a few fibers from the base of the hackle makes it easier to tie in and creates a neater look.",
+      },
+      {
+        flyPatternId: woollyBugger.id,
+        position: 4,
+        title: "Wrap the chenille body",
+        instruction:
+          "Advance your thread to just behind the eye. Wrap the chenille forward in touching turns, creating a full, even body. Tie off and trim the excess chenille behind the eye.",
+      },
+      {
+        flyPatternId: woollyBugger.id,
+        position: 5,
+        title: "Palmer the hackle",
+        instruction:
+          "Wrap the hackle feather forward in evenly spaced spiral turns (4-6 wraps) over the chenille body. Each wrap should be about the same distance apart. Tie off behind the eye and trim the excess hackle.",
+        tip: "Wrap the hackle in the opposite direction from the chenille to prevent trapping fibers. Use your fingers to sweep the fibers back as you wrap.",
+      },
+      {
+        flyPatternId: woollyBugger.id,
+        position: 6,
+        title: "Build the head and finish",
+        instruction:
+          "Build a small, neat thread head. Whip finish with 3-4 wraps and trim the thread. Apply a drop of head cement to the thread wraps.",
+      },
+      // Adams tying steps
+      {
+        flyPatternId: adams.id,
+        position: 1,
+        title: "Start thread and tie in tails",
+        instruction:
+          "Place hook in vise. Start thread and wrap to the bend. Select 6-8 stiff grizzly hackle fibers and tie them in at the bend, splayed slightly. The tails should be about one hook shank length.",
+        tip: "Split the tails by wrapping a small bump of thread and figure-eighting around the fibers.",
+      },
+      {
+        flyPatternId: adams.id,
+        position: 2,
+        title: "Dub the body",
+        instruction:
+          "Apply a thin amount of Adams gray dubbing to your thread. Wrap a slightly tapered body from the tail forward, stopping about 1/3 of the shank length behind the eye. The body should be slim and neat.",
+      },
+      {
+        flyPatternId: adams.id,
+        position: 3,
+        title: "Tie in and post the wings",
+        instruction:
+          "Select two matched grizzly hen hackle tips. Tie them in on top of the shank where the body ended, tips pointing upward. Post them upright with thread wraps at the base. Separate them into a V shape with figure-eight wraps.",
+        tip: "The wings should be about one hook shank length tall.",
+      },
+      {
+        flyPatternId: adams.id,
+        position: 4,
+        title: "Tie in hackles",
+        instruction:
+          "Select one grizzly and one brown rooster hackle feather sized for the hook. Tie them in together just behind the wing with the shiny side facing you.",
+      },
+      {
+        flyPatternId: adams.id,
+        position: 5,
+        title: "Wrap the hackles and finish",
+        instruction:
+          "Wrap both hackles together (or one at a time) behind and in front of the wings, 2-3 turns each side. Tie off, trim excess, build a neat head, whip finish, and apply head cement.",
+        tip: "Wrapping both hackles at the same time gives a more uniform appearance.",
+      },
+      // Pheasant Tail Nymph steps
+      {
+        flyPatternId: pheasantTailNymph.id,
+        position: 1,
+        title: "Add bead and start wire",
+        instruction:
+          "Slide a brass or tungsten bead onto the hook, small hole first. Place hook in vise. Start copper wire at the bead and wrap back to the bend in smooth turns.",
+        tip: "If using a beadhead variant, crush the barb first to make sliding the bead easier.",
+      },
+      {
+        flyPatternId: pheasantTailNymph.id,
+        position: 2,
+        title: "Tie in tail and body fibers",
+        instruction:
+          "Select 4-6 pheasant tail fibers. Tie them in at the bend for the tail (about half a shank length). Do not trim — the butts will be used for the body.",
+      },
+      {
+        flyPatternId: pheasantTailNymph.id,
+        position: 3,
+        title: "Wrap the body and rib",
+        instruction:
+          "Wrap the pheasant tail fibers forward to the 2/3 point of the shank, creating a slim abdomen. Secure with the wire. Counter-wrap the copper wire forward in 4-5 evenly spaced turns to rib and reinforce the body. Secure the wire and helicopter off the excess.",
+      },
+      {
+        flyPatternId: pheasantTailNymph.id,
+        position: 4,
+        title: "Build the thorax",
+        instruction:
+          "Tie in 3-4 peacock herls at the 2/3 point. Twist them together into a rope and wrap a bulky thorax up to the bead. Tie off and trim.",
+        tip: "Twisting the herls with the thread makes them much more durable.",
+      },
+      {
+        flyPatternId: pheasantTailNymph.id,
+        position: 5,
+        title: "Finish behind the bead",
+        instruction:
+          "Whip finish behind the bead. Trim thread and apply a small drop of head cement.",
+      },
+      // Elk Hair Caddis steps
+      {
+        flyPatternId: elkHairCaddis.id,
+        position: 1,
+        title: "Start thread and tie in ribbing",
+        instruction:
+          "Place hook in vise. Start thread at the eye and wrap back to the bend. Tie in fine gold wire for the rib.",
+      },
+      {
+        flyPatternId: elkHairCaddis.id,
+        position: 2,
+        title: "Dub the body",
+        instruction:
+          "Apply hare's ear dubbing to your thread. Dub a slightly tapered body from the bend to about 1/3 behind the eye. Keep it moderately shaggy for a buggy appearance.",
+      },
+      {
+        flyPatternId: elkHairCaddis.id,
+        position: 3,
+        title: "Tie in and palmer the hackle",
+        instruction:
+          "Tie in a brown hackle feather at the front of the body. Palmer it back toward the bend in evenly spaced turns. Secure with the gold wire by counter-wrapping forward. Trim excess wire.",
+        tip: "Palmering the hackle from front to back and securing with wire makes it very durable.",
+      },
+      {
+        flyPatternId: elkHairCaddis.id,
+        position: 4,
+        title: "Add the elk hair wing",
+        instruction:
+          "Cut a small bunch of elk body hair. Clean out the underfur and even the tips in a hair stacker. Measure to the bend of the hook. Tie in on top of the shank with 2-3 pinch wraps, letting the thread torque distribute the hair around the shank.",
+        tip: "Use just enough thread tension to flare the butts without spinning the hair. The wing should form a tent shape over the body.",
+      },
+      {
+        flyPatternId: elkHairCaddis.id,
+        position: 5,
+        title: "Trim butts and finish the head",
+        instruction:
+          "Trim the elk hair butts at an angle to form a neat, tapered head. Wrap thread over the trimmed butts to smooth them. Whip finish and apply head cement.",
+      },
+    ],
+  });
+
+  // ─── Tying Challenge (sample) ────────────────────────────────────────────
+
+  const now = new Date();
+  await prisma.tyingChallenge.create({
+    data: {
+      title: "Woolly Bugger Challenge",
+      description:
+        "The classic Woolly Bugger is the ultimate beginner pattern. Tie your best one — any color variation — and share it! Bonus points for creative color combos.",
+      flyPatternId: woollyBugger.id,
+      month: now.getMonth() + 1,
+      year: now.getFullYear(),
+      active: true,
+    },
+  });
+
+  // ─── Forum Categories ───────────────────────────────────────────────────
+
+  await prisma.forumCategory.createMany({
+    skipDuplicates: true,
+    data: [
+      {
+        name: "General Discussion",
+        slug: "general",
+        description: "Chat about anything fly fishing or fly tying related.",
+        sortOrder: 1,
+      },
+      {
+        name: "Pattern Help",
+        slug: "pattern-help",
+        description: "Need help with a specific pattern? Ask here.",
+        sortOrder: 2,
+      },
+      {
+        name: "Materials & Tools",
+        slug: "materials-tools",
+        description: "Discuss materials, tools, and equipment.",
+        sortOrder: 3,
+      },
+      {
+        name: "Show & Tell",
+        slug: "show-and-tell",
+        description: "Share photos of your tied flies!",
+        sortOrder: 4,
+      },
+      {
+        name: "Fishing Reports",
+        slug: "fishing-reports",
+        description: "Share what's working on the water.",
+        sortOrder: 5,
+      },
+    ],
+  });
+
   console.log("Seed complete!");
   console.log(`  - ${materials.length} materials`);
-  console.log("  - 4 fly patterns");
+  console.log("  - 4 fly patterns with tying steps");
   console.log("  - Pattern materials linked");
   console.log("  - Substitutions created");
   console.log("  - Variations created");
   console.log("  - Resources created");
   console.log("  - Affiliate links created");
+  console.log("  - Tying challenge created");
+  console.log("  - Forum categories created");
 }
 
 main()
