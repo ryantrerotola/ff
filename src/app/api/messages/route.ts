@@ -47,50 +47,58 @@ export async function GET(request: NextRequest) {
   }
 
   // Get conversation list (most recent message from each conversation partner)
-  const conversations = await prisma.$queryRaw<
-    {
-      partner_id: string;
-      partner_username: string;
-      partner_display_name: string | null;
-      last_message: string;
-      last_message_at: Date;
-      unread_count: bigint;
-    }[]
-  >`
-    SELECT
-      partner.id AS partner_id,
-      partner.username AS partner_username,
-      partner.display_name AS partner_display_name,
-      last_msg.content AS last_message,
-      last_msg.created_at AS last_message_at,
-      COALESCE(unread.cnt, 0) AS unread_count
-    FROM (
-      SELECT DISTINCT
-        CASE
-          WHEN sender_id = ${user.id}::uuid THEN receiver_id
-          ELSE sender_id
-        END AS partner_id
-      FROM direct_messages
-      WHERE sender_id = ${user.id}::uuid OR receiver_id = ${user.id}::uuid
-    ) AS partners
-    JOIN users AS partner ON partner.id = partners.partner_id
-    JOIN LATERAL (
-      SELECT content, created_at
-      FROM direct_messages
-      WHERE (sender_id = ${user.id}::uuid AND receiver_id = partners.partner_id)
-         OR (sender_id = partners.partner_id AND receiver_id = ${user.id}::uuid)
-      ORDER BY created_at DESC
-      LIMIT 1
-    ) AS last_msg ON true
-    LEFT JOIN LATERAL (
-      SELECT COUNT(*) AS cnt
-      FROM direct_messages
-      WHERE sender_id = partners.partner_id
-        AND receiver_id = ${user.id}::uuid
-        AND read = false
-    ) AS unread ON true
-    ORDER BY last_msg.created_at DESC
-  `;
+  type ConversationRow = {
+    partner_id: string;
+    partner_username: string;
+    partner_display_name: string | null;
+    last_message: string;
+    last_message_at: Date;
+    unread_count: bigint;
+  };
+
+  let conversations: ConversationRow[];
+  try {
+    conversations = await prisma.$queryRaw<ConversationRow[]>`
+      SELECT
+        partner.id AS partner_id,
+        partner.username AS partner_username,
+        partner.display_name AS partner_display_name,
+        last_msg.content AS last_message,
+        last_msg.created_at AS last_message_at,
+        COALESCE(unread.cnt, 0) AS unread_count
+      FROM (
+        SELECT DISTINCT
+          CASE
+            WHEN sender_id = ${user.id}::uuid THEN receiver_id
+            ELSE sender_id
+          END AS partner_id
+        FROM direct_messages
+        WHERE sender_id = ${user.id}::uuid OR receiver_id = ${user.id}::uuid
+      ) AS partners
+      JOIN users AS partner ON partner.id = partners.partner_id
+      JOIN LATERAL (
+        SELECT content, created_at
+        FROM direct_messages
+        WHERE (sender_id = ${user.id}::uuid AND receiver_id = partners.partner_id)
+           OR (sender_id = partners.partner_id AND receiver_id = ${user.id}::uuid)
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) AS last_msg ON true
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS cnt
+        FROM direct_messages
+        WHERE sender_id = partners.partner_id
+          AND receiver_id = ${user.id}::uuid
+          AND read = false
+      ) AS unread ON true
+      ORDER BY last_msg.created_at DESC
+    `;
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to fetch conversations" },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json(
     conversations.map((c) => ({

@@ -656,3 +656,14 @@ model Feedback {
   @@index([flyPatternId])
   @@map("feedback")
 }
+
+// ─── Rate Limiting ──────────────────────────────────────────────────────────
+
+model RateLimit {
+  key       String   @id
+  attempts  Int      @default(1)
+  expiresAt DateTime @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("rate_limits")
+}

@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   if (csrfError) return csrfError;
 
   const ip = getClientIp(request);
-  const { allowed, retryAfterMs } = checkRateLimit(`reset-password:${ip}`);
+  const { allowed, retryAfterMs } = await checkRateLimit(`reset-password:${ip}`);
   if (!allowed) {
     return NextResponse.json(
       { error: "Too many attempts. Try again later." },

@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { z } from "zod";
+
+const moderationActionSchema = z.object({
+  action: z.enum(["delete", "approve-submission", "reject-submission"]),
+  targetType: z.enum(["comment", "forumPost", "forumReply", "newsComment", "submission"]),
+  targetId: z.string().uuid(),
+});
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -66,43 +73,64 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// Admin actions: delete content, ban user, approve/reject submissions
+// Admin actions: delete content, approve/reject submissions
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user || user.role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { action, targetType, targetId } = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
-  switch (action) {
-    case "delete": {
-      if (targetType === "comment") {
-        await prisma.comment.delete({ where: { id: targetId } });
-      } else if (targetType === "forumPost") {
-        await prisma.forumPost.delete({ where: { id: targetId } });
-      } else if (targetType === "forumReply") {
-        await prisma.forumReply.delete({ where: { id: targetId } });
-      } else if (targetType === "newsComment") {
-        await prisma.newsComment.delete({ where: { id: targetId } });
+  const parsed = moderationActionSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid input" },
+      { status: 400 },
+    );
+  }
+
+  const { action, targetType, targetId } = parsed.data;
+
+  try {
+    switch (action) {
+      case "delete": {
+        if (targetType === "comment") {
+          await prisma.comment.delete({ where: { id: targetId } });
+        } else if (targetType === "forumPost") {
+          await prisma.forumPost.delete({ where: { id: targetId } });
+        } else if (targetType === "forumReply") {
+          await prisma.forumReply.delete({ where: { id: targetId } });
+        } else if (targetType === "newsComment") {
+          await prisma.newsComment.delete({ where: { id: targetId } });
+        }
+        return NextResponse.json({ ok: true });
       }
-      return NextResponse.json({ ok: true });
+      case "approve-submission": {
+        await prisma.userSubmittedPattern.update({
+          where: { id: targetId },
+          data: { status: "approved" },
+        });
+        return NextResponse.json({ ok: true });
+      }
+      case "reject-submission": {
+        await prisma.userSubmittedPattern.update({
+          where: { id: targetId },
+          data: { status: "rejected" },
+        });
+        return NextResponse.json({ ok: true });
+      }
     }
-    case "approve-submission": {
-      await prisma.userSubmittedPattern.update({
-        where: { id: targetId },
-        data: { status: "approved" },
-      });
-      return NextResponse.json({ ok: true });
+  } catch (err) {
+    const message = String(err);
+    if (message.includes("Record to update not found") || message.includes("Record to delete does not exist")) {
+      return NextResponse.json({ error: "Record not found" }, { status: 404 });
     }
-    case "reject-submission": {
-      await prisma.userSubmittedPattern.update({
-        where: { id: targetId },
-        data: { status: "rejected" },
-      });
-      return NextResponse.json({ ok: true });
-    }
-    default:
-      return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    return NextResponse.json({ error: "Operation failed" }, { status: 500 });
   }
 }
