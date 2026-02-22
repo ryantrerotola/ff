@@ -61,6 +61,12 @@ export default function RootLayout({
                 Patterns
               </Link>
               <Link
+                href="/news"
+                className="text-sm font-medium text-gray-600 hover:text-gray-900"
+              >
+                News
+              </Link>
+              <Link
                 href="/forum"
                 className="text-sm font-medium text-gray-600 hover:text-gray-900"
               >

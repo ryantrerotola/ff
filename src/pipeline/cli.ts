@@ -13,6 +13,8 @@ import { normalizePatternMaterials, groupExtractedPatterns } from "./normalizati
 import { buildConsensus } from "./normalization/consensus";
 import { ingestConsensusPattern, markAsIngested } from "./ingestion/ingest";
 
+import { scrapeNews } from "./scrapers/news";
+
 import {
   createStagedSource,
   updateStagedSourceContent,
@@ -525,6 +527,14 @@ async function cmdRun(args: string[]) {
   log.success("Full pipeline run complete");
 }
 
+// ─── COMMAND: news ──────────────────────────────────────────────────────────
+
+async function cmdNews() {
+  log.info("Scraping fly fishing news");
+  const count = await scrapeNews();
+  log.success(`Done — ${count} articles saved/updated`);
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -545,6 +555,7 @@ Commands:
   auto-approve            Auto-approve high-confidence extractions
   ingest                  Write approved patterns to production DB
   import-url <url> [name] Import a single URL (YouTube or blog)
+  news                    Scrape fly fishing news from RSS feeds & sites
   status                  Show pipeline statistics
   run [patterns...]       Run full pipeline end-to-end
 `);
@@ -588,6 +599,9 @@ Commands:
         break;
       case "import-url":
         await cmdImportUrl(args);
+        break;
+      case "news":
+        await cmdNews();
         break;
       case "status":
         await cmdStatus();

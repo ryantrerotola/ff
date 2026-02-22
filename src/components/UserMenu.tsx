@@ -74,6 +74,13 @@ export default function UserMenu() {
           />
           <div className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
             <Link
+              href="/my-stuff"
+              onClick={() => setMenuOpen(false)}
+              className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            >
+              My Stuff
+            </Link>
+            <Link
               href={`/profile/${user.username}`}
               onClick={() => setMenuOpen(false)}
               className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

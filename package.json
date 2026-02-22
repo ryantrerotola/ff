@@ -22,6 +22,7 @@
     "pipeline:auto-approve": "tsx src/pipeline/cli.ts auto-approve",
     "pipeline:ingest": "tsx src/pipeline/cli.ts ingest",
     "pipeline:status": "tsx src/pipeline/cli.ts status",
+    "pipeline:news": "tsx src/pipeline/cli.ts news",
     "pipeline:run": "tsx src/pipeline/cli.ts run",
     "postinstall": "prisma generate"
   },
