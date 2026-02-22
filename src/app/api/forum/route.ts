@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { forumPostSchema } from "@/lib/validation";
+import { forumPostSchema, paginationSchema } from "@/lib/validation";
 
 export async function GET(request: NextRequest) {
-  const page = Number(request.nextUrl.searchParams.get("page") ?? "1");
-  const limit = Math.min(
-    Number(request.nextUrl.searchParams.get("limit") ?? "20"),
-    50,
-  );
+  const pagination = paginationSchema.safeParse({
+    page: request.nextUrl.searchParams.get("page"),
+    limit: request.nextUrl.searchParams.get("limit"),
+  });
+  const page = pagination.success ? pagination.data.page : 1;
+  const limit = pagination.success ? pagination.data.limit : 20;
   const offset = (page - 1) * limit;
   const search = request.nextUrl.searchParams.get("search") ?? "";
   const categoryId = request.nextUrl.searchParams.get("categoryId");

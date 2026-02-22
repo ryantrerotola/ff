@@ -99,6 +99,15 @@ export const resetPasswordSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
+// ─── Shared pagination schema ─────────────────────────────────────────────
+
+export const paginationSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export type PaginationInput = z.infer<typeof paginationSchema>;
+
 export type PatternSearchInput = z.infer<typeof patternSearchSchema>;
 export type FeedbackFormInput = z.infer<typeof feedbackSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
