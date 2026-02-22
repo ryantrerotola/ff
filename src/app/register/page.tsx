@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { OAuthButtons } from "@/components/OAuthButtons";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -138,9 +139,11 @@ export default function RegisterPage() {
         </button>
       </form>
 
-      <p className="mt-4 text-center text-sm text-gray-600">
+      <OAuthButtons />
+
+      <p className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
         Already have an account?{" "}
-        <Link href="/login" className="text-brand-600 hover:text-brand-700">
+        <Link href="/login" className="text-brand-600 hover:text-brand-700 dark:text-brand-400">
           Log in
         </Link>
       </p>

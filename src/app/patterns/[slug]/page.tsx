@@ -20,6 +20,9 @@ import { PatternActions } from "@/components/PatternActions";
 import { StarRating } from "@/components/StarRating";
 import { CommentSection } from "@/components/CommentSection";
 import { JsonLd } from "@/components/JsonLd";
+import { ReportButton } from "@/components/ReportButton";
+import { SaveOfflineButton } from "@/components/SaveOfflineButton";
+import { PrintButton } from "@/components/PrintButton";
 
 interface PatternPageProps {
   params: Promise<{ slug: string }>;
@@ -126,6 +129,23 @@ export default async function PatternPage({ params }: PatternPageProps) {
           <div className="mt-4 flex flex-wrap items-center gap-4">
             <PatternActions flyPatternId={pattern.id} />
             <StarRating flyPatternId={pattern.id} />
+            <SaveOfflineButton
+              pattern={{
+                id: pattern.id,
+                slug: pattern.slug,
+                name: pattern.name,
+                category: pattern.category,
+                difficulty: pattern.difficulty,
+                waterType: pattern.waterType,
+                description: pattern.description,
+                origin: pattern.origin,
+                materials: pattern.materials,
+                variations: pattern.variations,
+                resources: pattern.resources,
+              }}
+            />
+            <PrintButton slug={pattern.slug} />
+            <ReportButton targetType="pattern" targetId={pattern.id} />
           </div>
         </header>
 

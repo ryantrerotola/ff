@@ -175,8 +175,27 @@ model User {
   followers          Follow[]               @relation("Followers")
   following          Follow[]               @relation("Following")
   passwordResets     PasswordResetToken[]
+  contentReports     ContentReport[]
+  oauthAccounts      OAuthAccount[]
 
   @@map("users")
+}
+
+model OAuthAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  provider       String
+  providerUserId String   @map("provider_user_id")
+  email          String?
+  displayName    String?  @map("display_name")
+  avatarUrl      String?  @map("avatar_url")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("oauth_accounts")
 }
 
 model Session {
@@ -655,6 +674,53 @@ model Feedback {
 
   @@index([flyPatternId])
   @@map("feedback")
+}
+
+// ─── Content Reports ───────────────────────────────────────────────────────
+
+enum ReportReason {
+  spam
+  inappropriate
+  incorrect_info
+  copyright
+  harassment
+  other
+}
+
+enum ReportStatus {
+  pending
+  reviewed
+  dismissed
+  actioned
+}
+
+enum ReportTargetType {
+  pattern
+  comment
+  forum_post
+  forum_reply
+  message
+  news_comment
+}
+
+model ContentReport {
+  id          String           @id @default(uuid()) @db.Uuid
+  reporterId  String           @map("reporter_id") @db.Uuid
+  targetType  ReportTargetType @map("target_type")
+  targetId    String           @map("target_id") @db.Uuid
+  reason      ReportReason
+  description String?          @db.Text
+  status      ReportStatus     @default(pending)
+  reviewedAt  DateTime?        @map("reviewed_at")
+  reviewNotes String?          @map("review_notes") @db.Text
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([targetType, targetId])
+  @@index([status])
+  @@index([reporterId])
+  @@map("content_reports")
 }
 
 // ─── Rate Limiting ──────────────────────────────────────────────────────────

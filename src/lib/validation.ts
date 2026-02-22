@@ -99,6 +99,53 @@ export const resetPasswordSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
+// ─── Content report schemas ────────────────────────────────────────────────
+
+export const reportSchema = z.object({
+  targetType: z.enum([
+    "pattern",
+    "comment",
+    "forum_post",
+    "forum_reply",
+    "message",
+    "news_comment",
+  ]),
+  targetId: z.string().uuid(),
+  reason: z.enum([
+    "spam",
+    "inappropriate",
+    "incorrect_info",
+    "copyright",
+    "harassment",
+    "other",
+  ]),
+  description: z.string().max(1000).optional(),
+});
+
+export type ReportInput = z.infer<typeof reportSchema>;
+
+// ─── User settings schemas ────────────────────────────────────────────────
+
+export const updateProfileSchema = z.object({
+  displayName: z.string().max(100).optional(),
+  bio: z.string().max(500).optional(),
+  avatarUrl: z.string().url().optional().or(z.literal("")),
+});
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(128),
+});
+
+export const updateEmailSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type UpdateEmailInput = z.infer<typeof updateEmailSchema>;
+
 // ─── Shared pagination schema ─────────────────────────────────────────────
 
 export const paginationSchema = z.object({

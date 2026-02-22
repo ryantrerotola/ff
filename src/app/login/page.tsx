@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { OAuthButtons } from "@/components/OAuthButtons";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -89,10 +90,17 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <p className="mt-4 text-center text-sm text-gray-600">
+      <OAuthButtons />
+
+      <p className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="text-brand-600 hover:text-brand-700">
+        <Link href="/register" className="text-brand-600 hover:text-brand-700 dark:text-brand-400">
           Register
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-sm">
+        <Link href="/forgot-password" className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+          Forgot your password?
         </Link>
       </p>
     </div>
