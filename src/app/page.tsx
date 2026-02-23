@@ -4,6 +4,7 @@ import { patternSearchSchema } from "@/lib/validation";
 import { PatternList } from "@/components/PatternList";
 import { PatternFilters } from "@/components/PatternFilters";
 import { Pagination } from "@/components/Pagination";
+import { SeasonalRecommendations } from "@/components/SeasonalRecommendations";
 import { APP_NAME } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -41,10 +42,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
           {APP_NAME}
         </h1>
-        <p className="mt-2 text-lg text-gray-600">
+        <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">
           Browse fly tying patterns with detailed materials, substitutes, and
           instructional resources.
         </p>
@@ -54,13 +55,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <PatternFilters />
       </Suspense>
 
+      <Suspense fallback={null}>
+        <SeasonalRecommendations />
+      </Suspense>
+
       <PatternList patterns={result.data} />
 
       <Suspense fallback={null}>
         <Pagination currentPage={result.page} totalPages={result.totalPages} />
       </Suspense>
 
-      <div className="mt-8 text-center text-xs text-gray-400">
+      <div className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
         Showing {result.data.length} of {result.total} patterns
       </div>
     </div>

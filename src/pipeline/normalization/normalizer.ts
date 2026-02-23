@@ -19,6 +19,12 @@ export async function normalizeMaterial(
 ): Promise<NormalizedMaterial> {
   const normalizedName = normalizeMaterialName(rawName);
 
+  // Title-case the normalized name for canonical storage
+  const canonicalDisplay = normalizedName
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
   // Step 1: Check canonical materials for exact match or alias
   const canonicals = await prisma.canonicalMaterial.findMany({
     where: { materialType: rawType as never },
@@ -106,17 +112,26 @@ export async function normalizeMaterial(
     prodMatch.score >= PIPELINE_CONFIG.normalization.fuzzyMatchThreshold
   ) {
     // Create canonical entry from production material
-    await prisma.canonicalMaterial.upsert({
-      where: { canonicalName: prodMatch.match },
-      update: {
-        aliases: { push: rawName },
-      },
-      create: {
-        canonicalName: prodMatch.match,
-        materialType: rawType as never,
-        aliases: rawName !== prodMatch.match ? [rawName] : [],
-      },
-    });
+    try {
+      await prisma.canonicalMaterial.upsert({
+        where: { canonicalName: prodMatch.match },
+        update: {
+          aliases: { push: rawName },
+        },
+        create: {
+          canonicalName: prodMatch.match,
+          materialType: rawType as never,
+          aliases: rawName !== prodMatch.match ? [rawName] : [],
+        },
+      });
+    } catch (err: unknown) {
+      // Handle race condition: concurrent upserts for the same material
+      if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2002") {
+        log.info("Concurrent insert resolved", { name: prodMatch.match });
+      } else {
+        throw err;
+      }
+    }
 
     return {
       canonicalName: prodMatch.match,
@@ -128,24 +143,35 @@ export async function normalizeMaterial(
 
   // Step 4: No match found — create new canonical entry
   log.info("New canonical material", {
-    name: rawName,
+    name: canonicalDisplay,
     type: rawType,
   });
 
-  await prisma.canonicalMaterial.upsert({
-    where: { canonicalName: rawName },
-    update: {},
-    create: {
-      canonicalName: rawName,
-      materialType: rawType as never,
-      aliases: [],
-    },
-  });
+  try {
+    await prisma.canonicalMaterial.upsert({
+      where: { canonicalName: canonicalDisplay },
+      update: {
+        aliases: { push: rawName },
+      },
+      create: {
+        canonicalName: canonicalDisplay,
+        materialType: rawType as never,
+        aliases: rawName !== canonicalDisplay ? [rawName] : [],
+      },
+    });
+  } catch (err: unknown) {
+    // Handle race condition: concurrent upserts for the same material
+    if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2002") {
+      log.info("Concurrent insert resolved", { name: canonicalDisplay });
+    } else {
+      throw err;
+    }
+  }
 
   return {
-    canonicalName: rawName,
+    canonicalName: canonicalDisplay,
     type: rawType,
-    aliases: [],
+    aliases: rawName !== canonicalDisplay ? [rawName] : [],
     confidence: 0.5,
   };
 }
@@ -156,15 +182,15 @@ export async function normalizeMaterial(
 export async function normalizePatternMaterials(
   extracted: ExtractedPattern
 ): Promise<ExtractedPattern> {
-  const normalizedMaterials = await Promise.all(
-    extracted.materials.map(async (mat) => {
-      const normalized = await normalizeMaterial(mat.name, mat.type);
-      return {
-        ...mat,
-        name: normalized.canonicalName,
-      };
-    })
-  );
+  // Process sequentially to avoid race conditions on canonical material upserts
+  const normalizedMaterials = [];
+  for (const mat of extracted.materials) {
+    const normalized = await normalizeMaterial(mat.name, mat.type);
+    normalizedMaterials.push({
+      ...mat,
+      name: normalized.canonicalName,
+    });
+  }
 
   return {
     ...extracted,

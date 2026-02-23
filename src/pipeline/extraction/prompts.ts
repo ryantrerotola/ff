@@ -43,11 +43,12 @@ IMPORTANT EXTRACTION RULES:
 3. Mark materials as required=true unless explicitly described as "optional" or "you can add"
 4. Include specific product names when mentioned (e.g., "Tiemco TMC 100" not just "dry fly hook")
 5. Include colors and sizes when specified
-6. If a material is mentioned as a substitute for another, include it in the substitutions array
-7. If variations of the pattern are described, include them
-8. Extract the origin/history of the pattern if mentioned
-9. Write a clear, informative description even if the source is informal/conversational
-10. For the pattern name, use the canonical/most common name`;
+6. Extract ONE canonical recipe — the primary/recommended materials list for the pattern. Each material slot (hook, thread, tail, etc.) should appear ONCE in the materials array. If the source mentions multiple hooks or threads to choose from, pick the one they recommend most strongly and put the alternatives in the substitutions array.
+7. If a material is mentioned as a substitute or alternative for another, include it in the substitutions array, NOT as a second entry of the same type in materials
+8. If variations of the pattern are described (e.g., "Chartreuse Clouser", "Deep Clouser"), include them in the variations array
+9. Extract the origin/history of the pattern if mentioned
+10. Write a clear, informative description even if the source is informal/conversational
+11. For the pattern name, use the canonical/most common name`;
 
 /**
  * Build the user prompt for extracting data from content.

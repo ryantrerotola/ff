@@ -44,7 +44,7 @@ export function PatternFilters() {
           placeholder="Search fly patterns..."
           defaultValue={currentSearch}
           onChange={(e) => updateParams("search", e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
         />
       </div>
 
@@ -85,7 +85,7 @@ function FilterSelect({ label, value, options, onChange }: FilterSelectProps) {
     <div className="min-w-[160px]">
       <label
         htmlFor={`filter-${label}`}
-        className="mb-1 block text-sm font-medium text-gray-700"
+        className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
       >
         {label}
       </label>
@@ -93,7 +93,7 @@ function FilterSelect({ label, value, options, onChange }: FilterSelectProps) {
         id={`filter-${label}`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
       >
         <option value="">All {label}s</option>
         {Object.entries(options).map(([key, displayLabel]) => (

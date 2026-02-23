@@ -13,6 +13,9 @@ import { normalizePatternMaterials, groupExtractedPatterns } from "./normalizati
 import { buildConsensus } from "./normalization/consensus";
 import { ingestConsensusPattern, markAsIngested } from "./ingestion/ingest";
 
+import { scrapeNews } from "./scrapers/news";
+import { discoverTechniqueVideos } from "./scrapers/techniques";
+
 import {
   createStagedSource,
   updateStagedSourceContent,
@@ -70,11 +73,9 @@ async function cmdDiscover(args: string[]) {
           },
         });
 
-        // If we have a transcript, store it immediately
-        if (result.transcript) {
-          const content = buildYouTubeContent(result);
-          await updateStagedSourceContent(source.id, content);
-        }
+        // Store title + description (and transcript if available) as content
+        const content = buildYouTubeContent(result);
+        await updateStagedSourceContent(source.id, content);
 
         totalSources++;
       }
@@ -163,7 +164,7 @@ async function cmdScrape() {
 
       try {
         if (source.sourceType === "youtube") {
-          // Try to fetch transcript for YouTube videos without content
+          // Try to fetch transcript for YouTube videos that only have title/description
           const metadata = source.metadata as { videoId?: string } | null;
           const videoId = metadata?.videoId;
 
@@ -172,9 +173,15 @@ async function cmdScrape() {
             const transcript = await fetchTranscript(videoId);
 
             if (transcript) {
+              // Re-build content with transcript included
               const content = `Title: ${source.title ?? ""}\nCreator: ${source.creatorName ?? ""}\n\nTranscript:\n${transcript}`;
               await updateStagedSourceContent(source.id, content);
               scraped++;
+            } else if (source.rawContent) {
+              // Already has title/description content from discovery — mark as scraped
+              await updateStagedSourceContent(source.id, source.rawContent);
+              scraped++;
+              log.info("No transcript, using description content", { videoId });
             } else {
               failed++;
             }
@@ -295,10 +302,11 @@ async function cmdNormalize() {
   for (const group of groups) {
     if (group.length === 0) continue;
 
-    // Normalize materials in each extraction
-    const normalized = await Promise.all(
-      group.map((p) => normalizePatternMaterials(p))
-    );
+    // Normalize materials sequentially to avoid race conditions on canonical upserts
+    const normalized = [];
+    for (const p of group) {
+      normalized.push(await normalizePatternMaterials(p));
+    }
 
     // Build consensus
     const consensus = buildConsensus(normalized);
@@ -524,6 +532,23 @@ async function cmdRun(args: string[]) {
   log.success("Full pipeline run complete");
 }
 
+// ─── COMMAND: news ──────────────────────────────────────────────────────────
+
+async function cmdNews() {
+  log.info("Scraping fly fishing news");
+  const count = await scrapeNews();
+  log.success(`Done — ${count} articles saved/updated`);
+}
+
+// ─── COMMAND: techniques ──────────────────────────────────────────────────
+
+async function cmdTechniques(args: string[]) {
+  const slug = args[0] ?? undefined;
+  log.info(slug ? `Discovering videos for technique: ${slug}` : "Discovering videos for all techniques");
+  const count = await discoverTechniqueVideos(slug);
+  log.success(`Done — ${count} new technique videos added`);
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -544,6 +569,8 @@ Commands:
   auto-approve            Auto-approve high-confidence extractions
   ingest                  Write approved patterns to production DB
   import-url <url> [name] Import a single URL (YouTube or blog)
+  news                    Scrape fly fishing news from RSS feeds & sites
+  techniques [slug]       Discover YouTube videos for tying techniques
   status                  Show pipeline statistics
   run [patterns...]       Run full pipeline end-to-end
 `);
@@ -551,7 +578,7 @@ Commands:
   }
 
   // Validate config for commands that need APIs
-  if (["discover", "extract", "run"].includes(command)) {
+  if (["discover", "extract", "run", "techniques"].includes(command)) {
     const errors = validateConfig();
     if (errors.length > 0) {
       console.error("\nConfiguration errors:");
@@ -587,6 +614,12 @@ Commands:
         break;
       case "import-url":
         await cmdImportUrl(args);
+        break;
+      case "news":
+        await cmdNews();
+        break;
+      case "techniques":
+        await cmdTechniques(args);
         break;
       case "status":
         await cmdStatus();

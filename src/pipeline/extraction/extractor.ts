@@ -64,7 +64,7 @@ export async function extractPattern(
 
     const data = toolUseBlock.input as ExtractedPattern;
 
-    // Validate the extracted data
+    // ── Basic presence checks ──────────────────────────────────────────
     if (!data.patternName || data.patternName.trim() === "") {
       log.warn("No pattern found in content", { query: patternQuery });
       return null;
@@ -76,6 +76,47 @@ export async function extractPattern(
       });
       return null;
     }
+
+    // ── Name length limits ─────────────────────────────────────────────
+    data.patternName = data.patternName.slice(0, 100);
+    for (const m of data.materials) {
+      m.name = m.name.slice(0, 150);
+    }
+
+    // ── Must have a hook ───────────────────────────────────────────────
+    if (!data.materials.some((m) => m.type === "hook")) {
+      log.warn("No hook in extracted materials", {
+        pattern: data.patternName,
+      });
+      return null;
+    }
+
+    // ── Force hook and thread to required ──────────────────────────────
+    for (const m of data.materials) {
+      if ((m.type === "hook" || m.type === "thread") && !m.required) {
+        m.required = true;
+      }
+    }
+
+    // ── Deduplicate material types (keep first occurrence) ─────────────
+    const seenTypes = new Set<string>();
+    const deduped = data.materials.filter((m) => {
+      if (seenTypes.has(m.type)) {
+        log.debug("Removing duplicate material type", {
+          pattern: data.patternName,
+          type: m.type,
+        });
+        return false;
+      }
+      seenTypes.add(m.type);
+      return true;
+    });
+    data.materials = deduped;
+
+    // ── Normalize positions to sequential 1..N ─────────────────────────
+    data.materials.forEach((m, i) => {
+      m.position = i + 1;
+    });
 
     log.success("Pattern extracted", {
       pattern: data.patternName,

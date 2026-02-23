@@ -53,12 +53,19 @@ const patternDetailInclude = {
       },
     },
   },
+  tyingSteps: {
+    orderBy: { position: "asc" as const },
+  },
   resources: {
     orderBy: { qualityScore: "desc" as const },
   },
   feedback: {
     orderBy: { createdAt: "desc" as const },
     take: 20,
+  },
+  images: {
+    include: { uploadedBy: { select: { username: true } } },
+    orderBy: { createdAt: "desc" as const },
   },
 } satisfies Prisma.FlyPatternInclude;
 

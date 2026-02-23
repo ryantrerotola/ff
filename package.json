@@ -13,6 +13,10 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed-techniques": "tsx prisma/seed-techniques.ts",
+    "db:seed-news": "tsx prisma/seed-news.ts",
+    "db:seed-hatches": "tsx prisma/seed-hatches.ts",
+    "db:seed-all": "tsx prisma/seed.ts && tsx prisma/seed-news.ts && tsx prisma/seed-hatches.ts && tsx prisma/seed-techniques.ts",
     "db:studio": "prisma studio",
     "pipeline": "tsx src/pipeline/cli.ts",
     "pipeline:discover": "tsx src/pipeline/cli.ts discover",
@@ -22,22 +26,36 @@
     "pipeline:auto-approve": "tsx src/pipeline/cli.ts auto-approve",
     "pipeline:ingest": "tsx src/pipeline/cli.ts ingest",
     "pipeline:status": "tsx src/pipeline/cli.ts status",
+    "pipeline:news": "tsx src/pipeline/cli.ts news",
+    "pipeline:techniques": "tsx src/pipeline/cli.ts techniques",
     "pipeline:run": "tsx src/pipeline/cli.ts run",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "postinstall": "prisma generate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@prisma/client": "^6.3.0",
+    "@react-pdf/renderer": "^4.3.2",
+    "@serwist/next": "^9.5.6",
+    "bcryptjs": "^3.0.3",
     "cheerio": "^1.0.0",
+    "idb": "^8.0.3",
     "next": "^15.1.0",
+    "nodemailer": "^8.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "serwist": "^9.5.6",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.10.0",
+    "@types/nodemailer": "^7.0.11",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.1.0",
@@ -48,9 +66,10 @@
     "prisma": "^6.3.0",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts && tsx prisma/seed-news.ts && tsx prisma/seed-hatches.ts && tsx prisma/seed-techniques.ts"
   }
 }
