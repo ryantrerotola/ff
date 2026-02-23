@@ -30,7 +30,27 @@ export async function POST(request: Request) {
     );
   }
 
-  const selectedSet = new Set(materialIds);
+  // Expand material set with substitutions so equivalent materials match
+  const substitutions = await prisma.materialSubstitution.findMany({
+    where: {
+      OR: [
+        { substituteMaterialId: { in: materialIds } },
+        { materialId: { in: materialIds } },
+      ],
+    },
+  });
+
+  const expandedSet = new Set(materialIds);
+  for (const sub of substitutions) {
+    // If user has the substitute, they effectively have the original
+    if (expandedSet.has(sub.substituteMaterialId)) {
+      expandedSet.add(sub.materialId);
+    }
+    // If user has the original, they effectively have the substitute
+    if (expandedSet.has(sub.materialId)) {
+      expandedSet.add(sub.substituteMaterialId);
+    }
+  }
 
   // Fetch all patterns with their required materials
   const patterns = await prisma.flyPattern.findMany({
@@ -80,7 +100,7 @@ export async function POST(request: Request) {
     if (pattern.materials.length === 0) continue;
 
     const requiredIds = pattern.materials.map((m) => m.materialId);
-    const ownedCount = requiredIds.filter((id) => selectedSet.has(id)).length;
+    const ownedCount = requiredIds.filter((id) => expandedSet.has(id)).length;
     const missingCount = requiredIds.length - ownedCount;
 
     if (missingCount === 0) {
@@ -91,9 +111,9 @@ export async function POST(request: Request) {
         category: pattern.category,
         difficulty: pattern.difficulty,
       });
-    } else if (missingCount <= 2 && ownedCount > 0) {
+    } else if (missingCount <= 3 && ownedCount > 0) {
       const missing = pattern.materials
-        .filter((m) => !selectedSet.has(m.materialId))
+        .filter((m) => !expandedSet.has(m.materialId))
         .map((m) => ({
           id: m.material.id,
           name: m.material.name,
