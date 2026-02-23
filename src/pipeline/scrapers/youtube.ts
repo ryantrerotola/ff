@@ -229,9 +229,15 @@ export async function fetchTranscript(
   const captionRes = await fetch(captionUrl);
   if (!captionRes.ok) return null;
 
-  const captionData = (await captionRes.json()) as {
+  let captionData: {
     events?: { segs?: { utf8: string }[]; tStartMs?: number; dDurationMs?: number }[];
   };
+
+  try {
+    captionData = (await captionRes.json()) as typeof captionData;
+  } catch {
+    return null;
+  }
 
   if (!captionData.events) return null;
 
