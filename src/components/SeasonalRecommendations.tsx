@@ -1,15 +1,23 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { isDatabaseConfigured, prisma } from "@/lib/prisma";
 
 const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
-export async function SeasonalRecommendations() {
-  const currentMonth = new Date().getMonth() + 1;
-
-  const hatches = await prisma.hatchEntry.findMany({
+async function loadHatches(currentMonth: number) {
+  return prisma.hatchEntry.findMany({
     where: { month: currentMonth },
     include: {
       flyPattern: {
@@ -19,6 +27,29 @@ export async function SeasonalRecommendations() {
     orderBy: [{ insectName: "asc" }],
     take: 8,
   });
+}
+
+export async function SeasonalRecommendations() {
+  if (!isDatabaseConfigured()) {
+    console.error(
+      "[SeasonalRecommendations] DATABASE_URL is not configured; skipping seasonal query.",
+    );
+    return null;
+  }
+
+  const currentMonth = new Date().getMonth() + 1;
+
+  let hatches: Awaited<ReturnType<typeof loadHatches>> = [];
+
+  try {
+    hatches = await loadHatches(currentMonth);
+  } catch (error) {
+    console.error(
+      "[SeasonalRecommendations] Failed to load seasonal hatches; skipping section.",
+      error,
+    );
+    return null;
+  }
 
   if (hatches.length === 0) return null;
 
