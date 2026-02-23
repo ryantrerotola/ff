@@ -2,17 +2,23 @@ import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 import { APP_URL } from "@/lib/constants";
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const patterns = await prisma.flyPattern.findMany({
-    select: { slug: true, updatedAt: true },
-  });
+export const dynamic = "force-dynamic";
 
-  const patternEntries: MetadataRoute.Sitemap = patterns.map((pattern) => ({
-    url: `${APP_URL}/patterns/${pattern.slug}`,
-    lastModified: pattern.updatedAt,
-    changeFrequency: "weekly",
-    priority: 0.8,
-  }));
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  let patternEntries: MetadataRoute.Sitemap = [];
+  try {
+    const patterns = await prisma.flyPattern.findMany({
+      select: { slug: true, updatedAt: true },
+    });
+    patternEntries = patterns.map((pattern) => ({
+      url: `${APP_URL}/patterns/${pattern.slug}`,
+      lastModified: pattern.updatedAt,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    }));
+  } catch {
+    // Database unavailable at build time — return static pages only
+  }
 
   const staticPages: MetadataRoute.Sitemap = [
     {
