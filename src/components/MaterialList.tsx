@@ -11,13 +11,13 @@ export function MaterialList({ materials }: MaterialListProps) {
 
   return (
     <section>
-      <h2 className="mb-4 text-xl font-bold text-gray-900">
+      <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-white">
         Materials (Tying Order)
       </h2>
 
       {requiredMaterials.length > 0 && (
         <div className="mb-6">
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             Required
           </h3>
           <div className="space-y-3">
@@ -30,7 +30,7 @@ export function MaterialList({ materials }: MaterialListProps) {
 
       {optionalMaterials.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             Optional
           </h3>
           <div className="space-y-3">

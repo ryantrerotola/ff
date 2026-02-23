@@ -20,10 +20,10 @@ export function SubstitutionList({ substitutions }: SubstitutionListProps) {
   if (substitutions.length === 0) return null;
 
   return (
-    <div className="mt-3 border-t border-gray-100 pt-3">
+    <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-700">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700"
+        className="flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
       >
         <svg
           className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-90" : ""}`}
@@ -47,15 +47,15 @@ export function SubstitutionList({ substitutions }: SubstitutionListProps) {
           {substitutions.map((sub) => (
             <li key={sub.id} className="text-sm">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-800">
+                <span className="font-medium text-gray-800 dark:text-gray-200">
                   {sub.substituteMaterial.name}
                 </span>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-700 dark:text-gray-400">
                   {SUBSTITUTION_TYPE_LABELS[sub.substitutionType]}
                 </span>
               </div>
               {sub.notes && (
-                <p className="mt-0.5 text-gray-500">{sub.notes}</p>
+                <p className="mt-0.5 text-gray-500 dark:text-gray-400">{sub.notes}</p>
               )}
               {sub.substituteMaterial.affiliateLinks.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-2">
@@ -65,7 +65,7 @@ export function SubstitutionList({ substitutions }: SubstitutionListProps) {
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer nofollow"
-                      className="text-xs text-brand-600 underline hover:text-brand-700"
+                      className="text-xs text-brand-600 underline hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
                     >
                       Buy at {link.retailer}
                     </a>

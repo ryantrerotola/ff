@@ -97,7 +97,7 @@ export function CommentSection({ flyPatternId }: CommentSectionProps) {
 
   return (
     <section>
-      <h2 className="text-xl font-semibold text-gray-900">
+      <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
         Comments ({comments.length})
       </h2>
 
@@ -108,7 +108,7 @@ export function CommentSection({ flyPatternId }: CommentSectionProps) {
           placeholder="Share your thoughts or tips..."
           rows={3}
           maxLength={2000}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
         />
         {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
         <button
@@ -122,7 +122,7 @@ export function CommentSection({ flyPatternId }: CommentSectionProps) {
 
       <div className="mt-6 space-y-4">
         {comments.map((comment) => (
-          <div key={comment.id} className="rounded-md border border-gray-200 p-4">
+          <div key={comment.id} className="rounded-md border border-gray-200 p-4 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">
@@ -130,15 +130,15 @@ export function CommentSection({ flyPatternId }: CommentSectionProps) {
                 </span>
                 <Link
                   href={`/profile/${comment.user.username}`}
-                  className="text-sm font-medium text-gray-900 hover:text-brand-600"
+                  className="text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white"
                 >
                   {comment.user.displayName || comment.user.username}
                 </Link>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   {new Date(comment.createdAt).toLocaleDateString()}
                 </span>
                 {comment.editedAt && (
-                  <span className="text-xs text-gray-400">(edited)</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">(edited)</span>
                 )}
               </div>
               {currentUserId === comment.user.id && (
@@ -148,13 +148,13 @@ export function CommentSection({ flyPatternId }: CommentSectionProps) {
                       setEditingId(comment.id);
                       setEditContent(comment.content);
                     }}
-                    className="text-xs text-gray-400 hover:text-gray-600"
+                    className="text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => handleDelete(comment.id)}
-                    className="text-xs text-gray-400 hover:text-red-600"
+                    className="text-xs text-gray-400 hover:text-red-600 dark:text-gray-500"
                   >
                     Delete
                   </button>
@@ -167,7 +167,7 @@ export function CommentSection({ flyPatternId }: CommentSectionProps) {
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   rows={2}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
                 <div className="mt-1 flex gap-2">
                   <button
@@ -178,14 +178,14 @@ export function CommentSection({ flyPatternId }: CommentSectionProps) {
                   </button>
                   <button
                     onClick={() => { setEditingId(null); setEditContent(""); }}
-                    className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                    className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800"
                   >
                     Cancel
                   </button>
                 </div>
               </div>
             ) : (
-              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">
+              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
                 {comment.content}
               </p>
             )}
@@ -193,7 +193,7 @@ export function CommentSection({ flyPatternId }: CommentSectionProps) {
         ))}
 
         {comments.length === 0 && (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             No comments yet. Be the first to share your experience with this
             pattern!
           </p>

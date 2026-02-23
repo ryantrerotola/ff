@@ -142,7 +142,7 @@ export function NewsEngagement({
           className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
             voted
               ? "bg-brand-50 text-brand-700 hover:bg-brand-100"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
           }`}
         >
           <svg
@@ -167,7 +167,7 @@ export function NewsEngagement({
           className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
             commentsOpen
               ? "bg-brand-50 text-brand-700 hover:bg-brand-100"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
           }`}
         >
           <svg
@@ -189,7 +189,7 @@ export function NewsEngagement({
 
       {/* Expanded comments section */}
       {commentsOpen && (
-        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
           {/* Comment form */}
           <form onSubmit={handleSubmitComment}>
             <textarea
@@ -198,7 +198,7 @@ export function NewsEngagement({
               placeholder="Write a comment..."
               rows={3}
               maxLength={2000}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
             />
             {commentError && (
               <p className="mt-1 text-sm text-red-600">{commentError}</p>
@@ -215,11 +215,11 @@ export function NewsEngagement({
           {/* Comments list */}
           <div className="mt-5 space-y-4">
             {commentsLoading && (
-              <p className="text-sm text-gray-500">Loading comments...</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading comments...</p>
             )}
 
             {!commentsLoading && comments.length === 0 && (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 No comments yet. Be the first to share your thoughts!
               </p>
             )}
@@ -227,7 +227,7 @@ export function NewsEngagement({
             {comments.map((comment) => (
               <div
                 key={comment.id}
-                className="rounded-md border border-gray-200 p-3"
+                className="rounded-md border border-gray-200 p-3 dark:border-gray-700"
               >
                 <div className="flex items-center gap-2">
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">
@@ -237,15 +237,15 @@ export function NewsEngagement({
                   </span>
                   <Link
                     href={`/profile/${comment.user.username}`}
-                    className="text-sm font-medium text-gray-900 hover:text-brand-600"
+                    className="text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white"
                   >
                     {comment.user.displayName || comment.user.username}
                   </Link>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
                     {new Date(comment.createdAt).toLocaleDateString()}
                   </span>
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">
+                <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
                   {comment.content}
                 </p>
               </div>

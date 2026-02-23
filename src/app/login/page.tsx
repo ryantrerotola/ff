@@ -38,12 +38,12 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-16">
-      <h1 className="mb-8 text-center text-2xl font-bold text-gray-900">
+      <h1 className="mb-8 text-center text-2xl font-bold text-gray-900 dark:text-white">
         Log In
       </h1>
 
       {error && (
-        <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
           {error}
         </div>
       )}
@@ -52,7 +52,7 @@ export default function LoginPage() {
         <div>
           <label
             htmlFor="username"
-            className="block text-sm font-medium text-gray-700"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300"
           >
             Username
           </label>
@@ -61,14 +61,14 @@ export default function LoginPage() {
             name="username"
             type="text"
             required
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
           />
         </div>
 
         <div>
           <label
             htmlFor="password"
-            className="block text-sm font-medium text-gray-700"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300"
           >
             Password
           </label>
@@ -77,7 +77,7 @@ export default function LoginPage() {
             name="password"
             type="password"
             required
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
           />
         </div>
 

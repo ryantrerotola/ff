@@ -144,7 +144,7 @@ export function MaterialReviews({ materialId, materialName }: MaterialReviewsPro
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-750"
+          className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-800"
         >
           {error && (
             <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>

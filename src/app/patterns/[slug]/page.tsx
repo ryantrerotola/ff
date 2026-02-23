@@ -70,9 +70,9 @@ export async function generateMetadata({
 }
 
 const DIFFICULTY_BADGE_COLORS: Record<string, string> = {
-  beginner: "bg-green-100 text-green-800",
-  intermediate: "bg-yellow-100 text-yellow-800",
-  advanced: "bg-red-100 text-red-800",
+  beginner: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  intermediate: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  advanced: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
 };
 
 export default async function PatternPage({ params }: PatternPageProps) {
@@ -84,7 +84,7 @@ export default async function PatternPage({ params }: PatternPageProps) {
   }
 
   const difficultyColor =
-    DIFFICULTY_BADGE_COLORS[pattern.difficulty] ?? "bg-gray-100 text-gray-800";
+    DIFFICULTY_BADGE_COLORS[pattern.difficulty] ?? "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
 
   const hasAffiliateLinks = pattern.materials.some(
     (pm) =>
@@ -101,7 +101,7 @@ export default async function PatternPage({ params }: PatternPageProps) {
       <article className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
+          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl dark:text-white">
             {pattern.name}
           </h1>
 
@@ -111,20 +111,20 @@ export default async function PatternPage({ params }: PatternPageProps) {
             >
               {DIFFICULTY_LABELS[pattern.difficulty]}
             </span>
-            <span className="inline-flex items-center rounded-md bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700">
+            <span className="inline-flex items-center rounded-md bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
               {CATEGORY_LABELS[pattern.category]}
             </span>
-            <span className="inline-flex items-center rounded-md bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
+            <span className="inline-flex items-center rounded-md bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
               {WATER_TYPE_LABELS[pattern.waterType]}
             </span>
           </div>
 
-          <p className="mt-4 text-lg leading-relaxed text-gray-700">
+          <p className="mt-4 text-lg leading-relaxed text-gray-700 dark:text-gray-300">
             {pattern.description}
           </p>
 
           {pattern.origin && (
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
               <span className="font-medium">Origin:</span> {pattern.origin}
             </p>
           )}

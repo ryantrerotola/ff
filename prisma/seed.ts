@@ -14,7 +14,22 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Seeding database...");
 
-  // Clean existing data
+  // Skip seeding if data already exists — avoids wiping user-created content
+  const existingPatterns = await prisma.flyPattern.count();
+  if (existingPatterns > 0) {
+    console.log(
+      `Database already has ${existingPatterns} patterns — skipping seed to preserve existing data.`,
+    );
+    console.log(
+      'To force re-seed, run: npx prisma db seed -- --force',
+    );
+    if (!process.argv.includes("--force")) {
+      return;
+    }
+    console.log("--force flag detected, re-seeding...");
+  }
+
+  // Clean existing seed data (only runs on first seed or --force)
   await prisma.feedback.deleteMany();
   await prisma.variationOverride.deleteMany();
   await prisma.variation.deleteMany();

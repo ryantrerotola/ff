@@ -112,11 +112,64 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
       case "approve-submission": {
-        await prisma.userSubmittedPattern.update({
+        const submission = await prisma.userSubmittedPattern.update({
           where: { id: targetId },
           data: { status: "approved" },
         });
-        return NextResponse.json({ ok: true });
+
+        // Promote to the main FlyPattern table so it shows up publicly
+        const slug = submission.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "");
+
+        // Ensure slug uniqueness
+        const existing = await prisma.flyPattern.findUnique({ where: { slug } });
+        const finalSlug = existing ? `${slug}-${Date.now()}` : slug;
+
+        const flyPattern = await prisma.flyPattern.create({
+          data: {
+            name: submission.name,
+            slug: finalSlug,
+            category: submission.category,
+            difficulty: submission.difficulty,
+            waterType: submission.waterType,
+            description: submission.description,
+          },
+        });
+
+        // Link submitted materials to the pattern if they exist
+        const materialsJson = submission.materials as
+          | { type: string; name: string; color?: string; size?: string }[]
+          | null;
+        if (Array.isArray(materialsJson)) {
+          for (let i = 0; i < materialsJson.length; i++) {
+            const mat = materialsJson[i]!;
+            // Find or create the material
+            let material = await prisma.material.findFirst({
+              where: { name: mat.name },
+            });
+            if (!material) {
+              const materialType = (mat.type ?? "other") as import("@prisma/client").MaterialType;
+              material = await prisma.material.create({
+                data: {
+                  name: mat.name,
+                  type: materialType,
+                },
+              });
+            }
+            await prisma.flyPatternMaterial.create({
+              data: {
+                flyPatternId: flyPattern.id,
+                materialId: material.id,
+                required: true,
+                position: i + 1,
+              },
+            });
+          }
+        }
+
+        return NextResponse.json({ ok: true, flyPatternId: flyPattern.id });
       }
       case "reject-submission": {
         await prisma.userSubmittedPattern.update({

@@ -67,7 +67,7 @@ export function PatternActions({ flyPatternId }: PatternActionsProps) {
         className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
           liked
             ? "bg-red-50 text-red-700 hover:bg-red-100"
-            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
         }`}
       >
         <svg
@@ -92,7 +92,7 @@ export function PatternActions({ flyPatternId }: PatternActionsProps) {
         className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
           saved
             ? "bg-brand-50 text-brand-700 hover:bg-brand-100"
-            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
         }`}
       >
         <svg

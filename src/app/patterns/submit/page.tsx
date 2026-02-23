@@ -117,16 +117,16 @@ export default function SubmitPatternPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="mb-2 text-2xl font-bold text-gray-900">
+      <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
         Submit a Pattern
       </h1>
-      <p className="mb-6 text-sm text-gray-500">
+      <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
         Share your fly pattern with the community. Submissions are reviewed
         before being published.
       </p>
 
       {error && (
-        <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
           {error}
         </div>
       )}
@@ -136,7 +136,7 @@ export default function SubmitPatternPage() {
         <div>
           <label
             htmlFor="name"
-            className="block text-sm font-medium text-gray-700"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300"
           >
             Pattern Name
           </label>
@@ -146,7 +146,7 @@ export default function SubmitPatternPage() {
             type="text"
             required
             maxLength={200}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
           />
         </div>
 
@@ -155,7 +155,7 @@ export default function SubmitPatternPage() {
           <div>
             <label
               htmlFor="category"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
             >
               Category
             </label>
@@ -163,7 +163,7 @@ export default function SubmitPatternPage() {
               id="category"
               name="category"
               required
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             >
               {CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -176,7 +176,7 @@ export default function SubmitPatternPage() {
           <div>
             <label
               htmlFor="difficulty"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
             >
               Difficulty
             </label>
@@ -184,7 +184,7 @@ export default function SubmitPatternPage() {
               id="difficulty"
               name="difficulty"
               required
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             >
               {DIFFICULTIES.map((d) => (
                 <option key={d.value} value={d.value}>
@@ -197,7 +197,7 @@ export default function SubmitPatternPage() {
           <div>
             <label
               htmlFor="waterType"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
             >
               Water Type
             </label>
@@ -205,7 +205,7 @@ export default function SubmitPatternPage() {
               id="waterType"
               name="waterType"
               required
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             >
               {WATER_TYPES.map((w) => (
                 <option key={w.value} value={w.value}>
@@ -220,7 +220,7 @@ export default function SubmitPatternPage() {
         <div>
           <label
             htmlFor="description"
-            className="block text-sm font-medium text-gray-700"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300"
           >
             Description
           </label>
@@ -231,14 +231,14 @@ export default function SubmitPatternPage() {
             rows={4}
             maxLength={5000}
             placeholder="Describe the pattern, when to use it, tips for tying..."
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
           />
         </div>
 
         {/* Materials */}
         <div>
           <div className="flex items-center justify-between">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Materials
             </label>
             <button
@@ -254,12 +254,12 @@ export default function SubmitPatternPage() {
             {materials.map((mat, idx) => (
               <div
                 key={idx}
-                className="flex items-start gap-2 rounded-md border border-gray-200 p-3"
+                className="flex items-start gap-2 rounded-md border border-gray-200 p-3 dark:border-gray-700"
               >
                 <select
                   value={mat.type}
                   onChange={(e) => updateMaterial(idx, "type", e.target.value)}
-                  className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 >
                   {MATERIAL_TYPES.map((t) => (
                     <option key={t} value={t}>
@@ -272,25 +272,25 @@ export default function SubmitPatternPage() {
                   onChange={(e) => updateMaterial(idx, "name", e.target.value)}
                   placeholder="Material name"
                   required
-                  className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
                 <input
                   value={mat.color}
                   onChange={(e) => updateMaterial(idx, "color", e.target.value)}
                   placeholder="Color"
-                  className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
                 <input
                   value={mat.size}
                   onChange={(e) => updateMaterial(idx, "size", e.target.value)}
                   placeholder="Size"
-                  className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
                 {materials.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeMaterial(idx)}
-                    className="mt-0.5 text-gray-400 hover:text-red-500"
+                    className="mt-0.5 text-gray-400 hover:text-red-500 dark:text-gray-500"
                   >
                     <svg
                       className="h-5 w-5"
@@ -323,7 +323,7 @@ export default function SubmitPatternPage() {
           <button
             type="button"
             onClick={() => router.back()}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
           >
             Cancel
           </button>

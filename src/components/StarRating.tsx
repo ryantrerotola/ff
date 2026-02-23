@@ -83,7 +83,7 @@ export function StarRating({ flyPatternId }: StarRatingProps) {
               aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
             >
               <svg
-                className={`h-5 w-5 ${filled ? "text-yellow-400" : "text-gray-300"}`}
+                className={`h-5 w-5 ${filled ? "text-yellow-400" : "text-gray-300 dark:text-gray-600"}`}
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
@@ -93,7 +93,7 @@ export function StarRating({ flyPatternId }: StarRatingProps) {
           );
         })}
       </div>
-      <span className="text-sm text-gray-600">
+      <span className="text-sm text-gray-600 dark:text-gray-400">
         {average.toFixed(1)} ({count} {count === 1 ? "rating" : "ratings"})
       </span>
       {error && <span className="text-sm text-red-600">{error}</span>}

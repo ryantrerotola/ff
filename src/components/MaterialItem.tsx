@@ -22,7 +22,7 @@ export function MaterialItem({ patternMaterial }: MaterialItemProps) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
               {typeLabel}
             </span>
             {!required && (
