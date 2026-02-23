@@ -17,38 +17,28 @@ export function OAuthButtons() {
 
   if (providers === null) {
     return (
-      <div className="mt-6">
-        <div className="relative">
+      <div className="mb-6">
+        <div className="flex flex-col gap-3">
+          <div className="flex min-h-[44px] w-full animate-pulse items-center justify-center rounded-md border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800" />
+          <div className="flex min-h-[44px] w-full animate-pulse items-center justify-center rounded-md border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800" />
+        </div>
+        <div className="relative mt-6">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-300 dark:border-gray-600" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="bg-gray-50 px-2 text-gray-500 dark:bg-gray-950 dark:text-gray-400">
-              Or continue with
+            <span className="bg-white px-2 text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+              Or
             </span>
           </div>
-        </div>
-        <div className="mt-4 flex flex-col gap-3">
-          <div className="flex min-h-[44px] w-full animate-pulse items-center justify-center rounded-md border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mt-6">
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-300 dark:border-gray-600" />
-        </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="bg-gray-50 px-2 text-gray-500 dark:bg-gray-950 dark:text-gray-400">
-            Or continue with
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-col gap-3">
+    <div className="mb-6">
+      <div className="flex flex-col gap-3">
         <a
           href={providers.google ? "/api/auth/oauth?provider=google" : undefined}
           onClick={
@@ -64,7 +54,7 @@ export function OAuthButtons() {
           className={`flex min-h-[44px] w-full items-center justify-center gap-3 rounded-md border px-4 py-2 text-sm font-medium shadow-sm transition ${
             providers.google
               ? "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-              : "cursor-pointer border-gray-200 bg-white text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500"
+              : "cursor-pointer border-gray-200 bg-gray-50 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500"
           }`}
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -108,7 +98,7 @@ export function OAuthButtons() {
           className={`flex min-h-[44px] w-full items-center justify-center gap-3 rounded-md border px-4 py-2 text-sm font-medium shadow-sm transition ${
             providers.github
               ? "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-              : "cursor-pointer border-gray-200 bg-white text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500"
+              : "cursor-pointer border-gray-200 bg-gray-50 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500"
           }`}
         >
           <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
@@ -121,6 +111,17 @@ export function OAuthButtons() {
             </span>
           )}
         </a>
+      </div>
+
+      <div className="relative mt-6">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+        </div>
+        <div className="relative flex justify-center text-sm">
+          <span className="bg-white px-2 text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+            Or
+          </span>
+        </div>
       </div>
     </div>
   );
