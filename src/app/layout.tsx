@@ -101,13 +101,7 @@ export default function RootLayout({
                   href="/learn"
                   className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                 >
-                  Learn
-                </Link>
-                <Link
-                  href="/tools/what-can-i-tie"
-                  className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-                >
-                  Tools
+                  Techniques
                 </Link>
                 <Link
                   href="/fly-box"
