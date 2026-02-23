@@ -30,28 +30,32 @@ export async function generateMetadata({
   params,
 }: TechniquePageProps): Promise<Metadata> {
   const { slug } = await params;
-  const technique = await prisma.tyingTechnique.findUnique({
-    where: { slug },
-  });
+  try {
+    const technique = await prisma.tyingTechnique.findUnique({
+      where: { slug },
+    });
 
-  if (!technique) {
-    return { title: "Technique Not Found" };
-  }
+    if (!technique) {
+      return { title: "Technique Not Found" };
+    }
 
-  const title = `${technique.name} — Learn to Tie`;
-  const description = technique.description.slice(0, 160);
+    const title = `${technique.name} — Learn to Tie`;
+    const description = technique.description.slice(0, 160);
 
-  return {
-    title,
-    description,
-    openGraph: {
-      title: `${title} | ${APP_NAME}`,
+    return {
+      title,
       description,
-      url: `${APP_URL}/learn/${technique.slug}`,
-      type: "article",
-      siteName: APP_NAME,
-    },
-  };
+      openGraph: {
+        title: `${title} | ${APP_NAME}`,
+        description,
+        url: `${APP_URL}/learn/${technique.slug}`,
+        type: "article",
+        siteName: APP_NAME,
+      },
+    };
+  } catch {
+    return { title: "Learn to Tie" };
+  }
 }
 
 const DIFFICULTY_BADGE_COLORS: Record<string, string> = {
@@ -129,31 +133,44 @@ function QualityStars({ score }: { score: number }) {
 export default async function TechniquePage({ params }: TechniquePageProps) {
   const { slug } = await params;
 
-  const technique = await prisma.tyingTechnique.findUnique({
-    where: { slug },
-    include: {
-      videos: {
-        orderBy: { qualityScore: "desc" },
+  let technique;
+  try {
+    technique = await prisma.tyingTechnique.findUnique({
+      where: { slug },
+      include: {
+        videos: {
+          orderBy: { qualityScore: "desc" },
+        },
       },
-    },
-  });
+    });
+  } catch {
+    notFound();
+  }
 
   if (!technique) {
     notFound();
   }
 
-  // Fetch related techniques (same category, excluding current)
-  const relatedTechniques = await prisma.tyingTechnique.findMany({
-    where: {
-      category: technique.category,
-      id: { not: technique.id },
-    },
-    include: {
-      _count: { select: { videos: true } },
-    },
-    orderBy: { name: "asc" },
-    take: 6,
-  });
+  let relatedTechniques: Awaited<ReturnType<typeof prisma.tyingTechnique.findMany<{
+    include: { _count: { select: { videos: true } } };
+  }>>> = [];
+
+  try {
+    // Fetch related techniques (same category, excluding current)
+    relatedTechniques = await prisma.tyingTechnique.findMany({
+      where: {
+        category: technique.category,
+        id: { not: technique.id },
+      },
+      include: {
+        _count: { select: { videos: true } },
+      },
+      orderBy: { name: "asc" },
+      take: 6,
+    });
+  } catch {
+    // Table query may fail if migration not applied
+  }
 
   const difficultyColor =
     DIFFICULTY_BADGE_COLORS[technique.difficulty] ??

@@ -49,13 +49,23 @@ export default async function LearnPage({ searchParams }: LearnPageProps) {
     ];
   }
 
-  const techniques = await prisma.tyingTechnique.findMany({
-    where,
-    include: {
-      _count: { select: { videos: true } },
-    },
-    orderBy: [{ category: "asc" }, { name: "asc" }],
-  });
+  type TechniqueRow = Awaited<ReturnType<typeof prisma.tyingTechnique.findMany<{
+    include: { _count: { select: { videos: true } } };
+  }>>>[number];
+
+  let techniques: TechniqueRow[] = [];
+
+  try {
+    techniques = await prisma.tyingTechnique.findMany({
+      where,
+      include: {
+        _count: { select: { videos: true } },
+      },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+    });
+  } catch {
+    // Table may not exist yet if migration hasn't been applied
+  }
 
   // Group techniques by category for section display
   const grouped = new Map<string, typeof techniques>();
