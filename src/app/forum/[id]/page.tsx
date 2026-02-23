@@ -148,8 +148,8 @@ export default function ForumPostPage() {
     return (
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 w-2/3 rounded bg-gray-200" />
-          <div className="h-24 rounded bg-gray-100" />
+          <div className="h-8 w-2/3 rounded bg-gray-200 dark:bg-gray-700" />
+          <div className="h-24 rounded bg-gray-100 dark:bg-gray-800" />
         </div>
       </div>
     );
@@ -158,7 +158,7 @@ export default function ForumPostPage() {
   if (!post) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-8 text-center">
-        <p className="text-gray-500">Post not found.</p>
+        <p className="text-gray-500 dark:text-gray-400">Post not found.</p>
         <Link href="/forum" className="mt-4 inline-block text-brand-600">
           Back to Forum
         </Link>
@@ -176,36 +176,36 @@ export default function ForumPostPage() {
       </Link>
 
       {/* Original post */}
-      <article className="rounded-lg border border-gray-200 p-6">
+      <article className="rounded-lg border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-start justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">{post.title}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{post.title}</h1>
           {currentUserId === post.user.id && (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setEditingPostContent(post.content)}
-                className="text-xs text-gray-400 hover:text-gray-600"
+                className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 Edit
               </button>
               <button
                 onClick={handleDeletePost}
-                className="text-xs text-gray-400 hover:text-red-600"
+                className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600"
               >
                 Delete
               </button>
             </div>
           )}
         </div>
-        <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
+        <div className="mt-2 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
           <Link
             href={`/profile/${post.user.username}`}
-            className="font-medium text-gray-900 hover:text-brand-600"
+            className="font-medium text-gray-900 dark:text-white hover:text-brand-600"
           >
             {post.user.displayName || post.user.username}
           </Link>
           <span>&middot;</span>
           <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-          {post.editedAt && <span className="text-xs text-gray-400">(edited)</span>}
+          {post.editedAt && <span className="text-xs text-gray-400 dark:text-gray-500">(edited)</span>}
         </div>
         {editingPostContent !== null ? (
           <div className="mt-4">
@@ -213,7 +213,7 @@ export default function ForumPostPage() {
               value={editingPostContent}
               onChange={(e) => setEditingPostContent(e.target.value)}
               rows={4}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
             <div className="mt-2 flex gap-2">
               <button
@@ -224,14 +224,14 @@ export default function ForumPostPage() {
               </button>
               <button
                 onClick={() => setEditingPostContent(null)}
-                className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 Cancel
               </button>
             </div>
           </div>
         ) : (
-          <div className="mt-4 whitespace-pre-wrap text-gray-700">
+          <div className="mt-4 whitespace-pre-wrap text-gray-700 dark:text-gray-300">
             {post.content}
           </div>
         )}
@@ -239,7 +239,7 @@ export default function ForumPostPage() {
 
       {/* Replies */}
       <section className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
           Replies ({post.replies.length})
         </h2>
 
@@ -247,7 +247,7 @@ export default function ForumPostPage() {
           {post.replies.map((reply) => (
             <div
               key={reply.id}
-              className="rounded-md border border-gray-200 p-4"
+              className="rounded-md border border-gray-200 dark:border-gray-700 p-4"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm">
@@ -256,15 +256,15 @@ export default function ForumPostPage() {
                   </span>
                   <Link
                     href={`/profile/${reply.user.username}`}
-                    className="font-medium text-gray-900 hover:text-brand-600"
+                    className="font-medium text-gray-900 dark:text-white hover:text-brand-600"
                   >
                     {reply.user.displayName || reply.user.username}
                   </Link>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
                     {new Date(reply.createdAt).toLocaleDateString()}
                   </span>
                   {reply.editedAt && (
-                    <span className="text-xs text-gray-400">(edited)</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">(edited)</span>
                   )}
                 </div>
                 {currentUserId === reply.user.id && (
@@ -274,13 +274,13 @@ export default function ForumPostPage() {
                         setEditingReplyId(reply.id);
                         setEditReplyContent(reply.content);
                       }}
-                      className="text-xs text-gray-400 hover:text-gray-600"
+                      className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleDeleteReply(reply.id)}
-                      className="text-xs text-gray-400 hover:text-red-600"
+                      className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600"
                     >
                       Delete
                     </button>
@@ -293,7 +293,7 @@ export default function ForumPostPage() {
                     value={editReplyContent}
                     onChange={(e) => setEditReplyContent(e.target.value)}
                     rows={2}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
                   />
                   <div className="mt-1 flex gap-2">
                     <button
@@ -304,14 +304,14 @@ export default function ForumPostPage() {
                     </button>
                     <button
                       onClick={() => { setEditingReplyId(null); setEditReplyContent(""); }}
-                      className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                      className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       Cancel
                     </button>
                   </div>
                 </div>
               ) : (
-                <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">
+                <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
                   {reply.content}
                 </p>
               )}
@@ -327,9 +327,9 @@ export default function ForumPostPage() {
             placeholder="Write a reply..."
             rows={3}
             maxLength={5000}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           />
-          {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>}
           <button
             type="submit"
             disabled={replying || !replyContent.trim()}

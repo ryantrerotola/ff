@@ -60,8 +60,8 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="text-2xl font-bold text-gray-900">Fly Fishing News</h1>
-      <p className="mt-1 text-sm text-gray-500">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Fly Fishing News</h1>
+      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
         Latest stories from across the fly fishing world.
       </p>
 
@@ -73,7 +73,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
             type="text"
             defaultValue={search ?? ""}
             placeholder="Search news..."
-            className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:w-64"
+            className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:w-64"
           />
           {currentSort === "trending" && <input type="hidden" name="sort" value="trending" />}
           <button
@@ -84,13 +84,13 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           </button>
         </form>
 
-        <div className="flex gap-1 rounded-md border border-gray-200 p-0.5">
+        <div className="flex gap-1 rounded-md border border-gray-200 dark:border-gray-700 p-0.5">
           <Link
             href={buildUrl({ search: search ?? "", sort: "recent" })}
             className={`rounded px-3 py-1 text-sm font-medium ${
               currentSort === "recent"
                 ? "bg-brand-600 text-white"
-                : "text-gray-600 hover:bg-gray-100"
+                : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
             }`}
           >
             Recent
@@ -100,7 +100,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
             className={`rounded px-3 py-1 text-sm font-medium ${
               currentSort === "trending"
                 ? "bg-brand-600 text-white"
-                : "text-gray-600 hover:bg-gray-100"
+                : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
             }`}
           >
             Trending
@@ -110,13 +110,13 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
 
       {articles.length === 0 ? (
         <div className="mt-12 text-center">
-          <p className="text-gray-500">
+          <p className="text-gray-500 dark:text-gray-400">
             {search
               ? `No articles matching "${search}".`
               : "No news articles yet. Run the news scraper to populate:"}
           </p>
           {!search && (
-            <code className="mt-2 inline-block rounded bg-gray-100 px-3 py-1 text-sm text-gray-700">
+            <code className="mt-2 inline-block rounded bg-gray-100 dark:bg-gray-800 px-3 py-1 text-sm text-gray-700 dark:text-gray-300">
               npx tsx src/pipeline/cli.ts news
             </code>
           )}
@@ -126,7 +126,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           {articles.map((article) => (
             <article
               key={article.id}
-              className="overflow-hidden rounded-lg border border-gray-200 transition hover:border-gray-300 hover:shadow-sm"
+              className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 transition hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm"
             >
               <a
                 href={article.url}
@@ -145,13 +145,13 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-semibold text-gray-900 line-clamp-2">
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-white line-clamp-2">
                     {article.title}
                   </h2>
-                  <p className="mt-1 text-sm text-gray-600 line-clamp-2">
+                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                     {article.summary}
                   </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 text-xs text-gray-400">
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 text-xs text-gray-400 dark:text-gray-500">
                     <span className="font-medium text-brand-600">
                       {article.sourceName}
                     </span>
@@ -169,7 +169,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                   </div>
                 </div>
               </a>
-              <div className="border-t border-gray-100 px-4 py-2">
+              <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-2">
                 <NewsEngagement
                   articleId={article.id}
                   initialVoteCount={article._count.votes}
@@ -191,12 +191,12 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                 search: search ?? "",
                 sort: currentSort,
               })}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+              className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               Previous
             </Link>
           )}
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
             Page {page} of {totalPages}
           </span>
           {page < totalPages && (
@@ -206,7 +206,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
                 search: search ?? "",
                 sort: currentSort,
               })}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+              className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               Next
             </Link>

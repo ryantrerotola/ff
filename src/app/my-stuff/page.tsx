@@ -66,8 +66,8 @@ export default async function MyStuffPage() {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Stuff</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Stuff</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Welcome back, {user.displayName || user.username}
           </p>
         </div>
@@ -81,40 +81,40 @@ export default async function MyStuffPage() {
 
       {/* Quick Stats */}
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-lg border border-gray-200 p-4 text-center">
-          <div className="text-2xl font-bold text-gray-900">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {savedPatterns.length}
           </div>
-          <div className="text-xs text-gray-500">Saved Patterns</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">Saved Patterns</div>
         </div>
-        <div className="rounded-lg border border-gray-200 p-4 text-center">
-          <div className="text-2xl font-bold text-gray-900">{likeCount}</div>
-          <div className="text-xs text-gray-500">Likes Given</div>
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">{likeCount}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">Likes Given</div>
         </div>
-        <div className="rounded-lg border border-gray-200 p-4 text-center">
-          <div className="text-2xl font-bold text-gray-900">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {submissions.length}
           </div>
-          <div className="text-xs text-gray-500">Submissions</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">Submissions</div>
         </div>
         <Link
           href="/messages"
-          className="rounded-lg border border-gray-200 p-4 text-center hover:border-brand-300"
+          className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center hover:border-brand-300"
         >
-          <div className="text-2xl font-bold text-gray-900">
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {unreadMessages}
           </div>
-          <div className="text-xs text-gray-500">Unread Messages</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">Unread Messages</div>
         </Link>
       </div>
 
       {/* Saved Patterns */}
       <section className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
           Saved Patterns
         </h2>
         {savedPatterns.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-500">
+          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
             No saved patterns yet.{" "}
             <Link href="/" className="text-brand-600 hover:text-brand-700">
               Browse patterns
@@ -127,12 +127,12 @@ export default async function MyStuffPage() {
               <Link
                 key={sp.id}
                 href={`/patterns/${sp.flyPattern.slug}`}
-                className="rounded-md border border-gray-200 p-3 transition hover:border-brand-300 hover:bg-brand-50"
+                className="rounded-md border border-gray-200 dark:border-gray-700 p-3 transition hover:border-brand-300 hover:bg-brand-50"
               >
-                <div className="text-sm font-medium text-gray-900">
+                <div className="text-sm font-medium text-gray-900 dark:text-white">
                   {sp.flyPattern.name}
                 </div>
-                <div className="mt-1 text-xs text-gray-500">
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {CATEGORY_LABELS[sp.flyPattern.category]} &middot;{" "}
                   {DIFFICULTY_LABELS[sp.flyPattern.difficulty]}
                 </div>
@@ -145,20 +145,20 @@ export default async function MyStuffPage() {
       {/* My Submissions */}
       {submissions.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             My Submissions
           </h2>
           <div className="mt-3 space-y-2">
             {submissions.map((sub) => (
               <div
                 key={sub.id}
-                className="flex items-center justify-between rounded-md border border-gray-200 p-3"
+                className="flex items-center justify-between rounded-md border border-gray-200 dark:border-gray-700 p-3"
               >
                 <div>
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className="text-sm font-medium text-gray-900 dark:text-white">
                     {sub.name}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     Submitted{" "}
                     {new Date(sub.createdAt).toLocaleDateString()}
                   </div>
@@ -177,7 +177,7 @@ export default async function MyStuffPage() {
       {/* Recent Comments */}
       {recentComments.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Recent Comments
           </h2>
           <div className="mt-3 space-y-2">
@@ -185,15 +185,15 @@ export default async function MyStuffPage() {
               <Link
                 key={c.id}
                 href={`/patterns/${c.flyPattern.slug}`}
-                className="block rounded-md border border-gray-200 p-3 hover:border-brand-300"
+                className="block rounded-md border border-gray-200 dark:border-gray-700 p-3 hover:border-brand-300"
               >
                 <div className="text-xs font-medium text-brand-600">
                   {c.flyPattern.name}
                 </div>
-                <p className="mt-1 text-sm text-gray-700 line-clamp-2">
+                <p className="mt-1 text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
                   {c.content}
                 </p>
-                <div className="mt-1 text-xs text-gray-400">
+                <div className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                   {new Date(c.createdAt).toLocaleDateString()}
                 </div>
               </Link>

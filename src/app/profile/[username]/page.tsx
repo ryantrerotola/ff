@@ -101,9 +101,9 @@ export default function ProfilePage() {
     return (
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className="animate-pulse space-y-4">
-          <div className="h-20 w-20 rounded-full bg-gray-200" />
-          <div className="h-6 w-48 rounded bg-gray-200" />
-          <div className="h-4 w-32 rounded bg-gray-200" />
+          <div className="h-20 w-20 rounded-full bg-gray-200 dark:bg-gray-700" />
+          <div className="h-6 w-48 rounded bg-gray-200 dark:bg-gray-700" />
+          <div className="h-4 w-32 rounded bg-gray-200 dark:bg-gray-700" />
         </div>
       </div>
     );
@@ -112,7 +112,7 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-16 text-center">
-        <p className="text-lg text-gray-500">User not found.</p>
+        <p className="text-lg text-gray-500 dark:text-gray-400">User not found.</p>
       </div>
     );
   }
@@ -127,14 +127,14 @@ export default function ProfilePage() {
           {(profile.displayName || profile.username)[0]?.toUpperCase()}
         </div>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {profile.displayName || profile.username}
           </h1>
-          <p className="text-sm text-gray-500">@{profile.username}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">@{profile.username}</p>
           {profile.bio && (
-            <p className="mt-2 text-sm text-gray-700">{profile.bio}</p>
+            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">{profile.bio}</p>
           )}
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
             Joined {new Date(profile.createdAt).toLocaleDateString()}
           </p>
           <div className="mt-3 flex items-center gap-3">
@@ -145,7 +145,7 @@ export default function ProfilePage() {
                   disabled={followLoading}
                   className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
                     isFollowing
-                      ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                      ? "border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                       : "bg-brand-600 text-white hover:bg-brand-700"
                   } disabled:opacity-50`}
                 >
@@ -153,7 +153,7 @@ export default function ProfilePage() {
                 </button>
                 <Link
                   href={`/messages/${profile.id}`}
-                  className="rounded-md border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   Message
                 </Link>
@@ -164,45 +164,45 @@ export default function ProfilePage() {
       </div>
 
       {/* Stats */}
-      <div className="mt-6 grid grid-cols-2 gap-4 rounded-lg border border-gray-200 p-4 sm:grid-cols-6">
+      <div className="mt-6 grid grid-cols-2 gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4 sm:grid-cols-6">
         <div className="text-center">
-          <div className="text-lg font-bold text-gray-900">{followerCount}</div>
-          <div className="text-xs text-gray-500">Followers</div>
+          <div className="text-lg font-bold text-gray-900 dark:text-white">{followerCount}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">Followers</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold text-gray-900">{followingCount}</div>
-          <div className="text-xs text-gray-500">Following</div>
+          <div className="text-lg font-bold text-gray-900 dark:text-white">{followingCount}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">Following</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold text-gray-900">
+          <div className="text-lg font-bold text-gray-900 dark:text-white">
             {profile._count.comments}
           </div>
-          <div className="text-xs text-gray-500">Comments</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">Comments</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold text-gray-900">
+          <div className="text-lg font-bold text-gray-900 dark:text-white">
             {profile._count.likes}
           </div>
-          <div className="text-xs text-gray-500">Likes</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">Likes</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold text-gray-900">
+          <div className="text-lg font-bold text-gray-900 dark:text-white">
             {profile._count.forumPosts}
           </div>
-          <div className="text-xs text-gray-500">Posts</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">Posts</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold text-gray-900">
+          <div className="text-lg font-bold text-gray-900 dark:text-white">
             {profile._count.submittedPatterns}
           </div>
-          <div className="text-xs text-gray-500">Patterns</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">Patterns</div>
         </div>
       </div>
 
       {/* Saved Patterns */}
       {profile.savedPatterns.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Saved Patterns
           </h2>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -210,12 +210,12 @@ export default function ProfilePage() {
               <Link
                 key={sp.flyPattern.id}
                 href={`/patterns/${sp.flyPattern.slug}`}
-                className="rounded-md border border-gray-200 p-3 hover:border-brand-300 hover:bg-brand-50"
+                className="rounded-md border border-gray-200 dark:border-gray-700 p-3 hover:border-brand-300 hover:bg-brand-50"
               >
-                <div className="text-sm font-medium text-gray-900">
+                <div className="text-sm font-medium text-gray-900 dark:text-white">
                   {sp.flyPattern.name}
                 </div>
-                <div className="mt-1 text-xs capitalize text-gray-500">
+                <div className="mt-1 text-xs capitalize text-gray-500 dark:text-gray-400">
                   {sp.flyPattern.category} &middot; {sp.flyPattern.difficulty}
                 </div>
               </Link>
@@ -227,22 +227,22 @@ export default function ProfilePage() {
       {/* Recent Comments */}
       {profile.comments.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Recent Comments
           </h2>
           <div className="mt-3 space-y-3">
             {profile.comments.map((c) => (
-              <div key={c.id} className="rounded-md border border-gray-200 p-3">
+              <div key={c.id} className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
                 <Link
                   href={`/patterns/${c.flyPattern.slug}`}
                   className="text-sm font-medium text-brand-600 hover:text-brand-700"
                 >
                   {c.flyPattern.name}
                 </Link>
-                <p className="mt-1 text-sm text-gray-700 line-clamp-2">
+                <p className="mt-1 text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
                   {c.content}
                 </p>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                   {new Date(c.createdAt).toLocaleDateString()}
                 </p>
               </div>
@@ -254,18 +254,18 @@ export default function ProfilePage() {
       {/* Recent Forum Posts */}
       {profile.forumPosts.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-900">Forum Posts</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Forum Posts</h2>
           <div className="mt-3 space-y-2">
             {profile.forumPosts.map((post) => (
               <Link
                 key={post.id}
                 href={`/forum/${post.id}`}
-                className="block rounded-md border border-gray-200 p-3 hover:border-brand-300"
+                className="block rounded-md border border-gray-200 dark:border-gray-700 p-3 hover:border-brand-300"
               >
-                <div className="text-sm font-medium text-gray-900">
+                <div className="text-sm font-medium text-gray-900 dark:text-white">
                   {post.title}
                 </div>
-                <div className="text-xs text-gray-400">
+                <div className="text-xs text-gray-400 dark:text-gray-500">
                   {new Date(post.createdAt).toLocaleDateString()}
                 </div>
               </Link>

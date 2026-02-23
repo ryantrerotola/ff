@@ -141,7 +141,7 @@ export default function ModerationPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-16 text-center">
-        <div className="rounded-md bg-red-50 p-6">
+        <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-6">
           <p className="text-lg font-medium text-red-800">{error}</p>
         </div>
       </div>
@@ -151,14 +151,14 @@ export default function ModerationPage() {
   if (loading || !data) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-        <h2 className="mb-6 text-2xl font-bold text-gray-900">
+        <h2 className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">
           Content Moderation
         </h2>
         <div className="space-y-4">
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="h-20 animate-pulse rounded-md bg-gray-100"
+              className="h-20 animate-pulse rounded-md bg-gray-100 dark:bg-gray-800"
             />
           ))}
         </div>
@@ -168,28 +168,28 @@ export default function ModerationPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <h2 className="mb-6 text-2xl font-bold text-gray-900">
+      <h2 className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">
         Content Moderation
       </h2>
 
       {/* Stats */}
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">Total Users</p>
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm">
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Users</p>
           <p className="mt-1 text-3xl font-bold text-brand-600">
             {data.userCount}
           </p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm">
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
             Pending Submissions
           </p>
           <p className="mt-1 text-3xl font-bold text-brand-600">
             {data.pendingSubmissions.length}
           </p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">Recent Content</p>
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm">
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Recent Content</p>
           <p className="mt-1 text-3xl font-bold text-brand-600">
             {data.recentComments.length +
               data.recentForumPosts.length +
@@ -200,11 +200,11 @@ export default function ModerationPage() {
 
       {/* Pending Submissions */}
       <section className="mb-8">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900">
+        <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
           Pending User-Submitted Patterns
         </h3>
         {data.pendingSubmissions.length === 0 ? (
-          <p className="rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-500">
+          <p className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-500 dark:text-gray-400">
             No pending submissions.
           </p>
         ) : (
@@ -212,16 +212,16 @@ export default function ModerationPage() {
             {data.pendingSubmissions.map((submission) => (
               <div
                 key={submission.id}
-                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-medium text-gray-900">
+                    <h4 className="font-medium text-gray-900 dark:text-white">
                       {submission.name}
                     </h4>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       by{" "}
-                      <span className="font-medium text-gray-700">
+                      <span className="font-medium text-gray-700 dark:text-gray-300">
                         {submission.user.username}
                       </span>
                       {" \u00b7 "}
@@ -229,10 +229,10 @@ export default function ModerationPage() {
                       {" \u00b7 "}
                       <span className="capitalize">{submission.difficulty}</span>
                     </p>
-                    <p className="mt-1 line-clamp-2 text-sm text-gray-600">
+                    <p className="mt-1 line-clamp-2 text-sm text-gray-600 dark:text-gray-400">
                       {submission.description}
                     </p>
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       Submitted{" "}
                       {new Date(submission.createdAt).toLocaleDateString()}
                     </p>
@@ -266,7 +266,7 @@ export default function ModerationPage() {
                         )
                       }
                       disabled={actionLoading !== null}
-                      className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
                     >
                       {actionLoading ===
                       `reject-submission-submission-${submission.id}`
@@ -283,11 +283,11 @@ export default function ModerationPage() {
 
       {/* Recent Comments */}
       <section className="mb-8">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900">
+        <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
           Recent Comments
         </h3>
         {data.recentComments.length === 0 ? (
-          <p className="rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-500">
+          <p className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-500 dark:text-gray-400">
             No recent comments.
           </p>
         ) : (
@@ -295,11 +295,11 @@ export default function ModerationPage() {
             {data.recentComments.map((comment) => (
               <div
                 key={comment.id}
-                className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-gray-900">{comment.content}</p>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="text-sm text-gray-900 dark:text-white">{comment.content}</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     by{" "}
                     <span className="font-medium">{comment.user.username}</span>
                     {comment.user.role === "admin" && (
@@ -318,7 +318,7 @@ export default function ModerationPage() {
                 <button
                   onClick={() => handleAction("delete", "comment", comment.id)}
                   disabled={actionLoading !== null}
-                  className="flex-shrink-0 rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="flex-shrink-0 rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
                 >
                   {actionLoading === `delete-comment-${comment.id}`
                     ? "..."
@@ -332,11 +332,11 @@ export default function ModerationPage() {
 
       {/* Recent Forum Posts */}
       <section className="mb-8">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900">
+        <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
           Recent Forum Posts
         </h3>
         {data.recentForumPosts.length === 0 ? (
-          <p className="rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-500">
+          <p className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-500 dark:text-gray-400">
             No recent forum posts.
           </p>
         ) : (
@@ -344,16 +344,16 @@ export default function ModerationPage() {
             {data.recentForumPosts.map((post) => (
               <div
                 key={post.id}
-                className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm"
               >
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-sm font-medium text-gray-900">
+                  <h4 className="text-sm font-medium text-gray-900 dark:text-white">
                     {post.title}
                   </h4>
-                  <p className="mt-1 line-clamp-1 text-sm text-gray-600">
+                  <p className="mt-1 line-clamp-1 text-sm text-gray-600 dark:text-gray-400">
                     {post.content}
                   </p>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     by{" "}
                     <span className="font-medium">{post.user.username}</span>
                     {post.user.role === "admin" && (
@@ -372,7 +372,7 @@ export default function ModerationPage() {
                     handleAction("delete", "forumPost", post.id)
                   }
                   disabled={actionLoading !== null}
-                  className="flex-shrink-0 rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="flex-shrink-0 rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
                 >
                   {actionLoading === `delete-forumPost-${post.id}`
                     ? "..."
@@ -386,11 +386,11 @@ export default function ModerationPage() {
 
       {/* Recent Forum Replies */}
       <section className="mb-8">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900">
+        <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
           Recent Forum Replies
         </h3>
         {data.recentForumReplies.length === 0 ? (
-          <p className="rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-500">
+          <p className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-500 dark:text-gray-400">
             No recent forum replies.
           </p>
         ) : (
@@ -398,11 +398,11 @@ export default function ModerationPage() {
             {data.recentForumReplies.map((reply) => (
               <div
                 key={reply.id}
-                className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-gray-900">{reply.content}</p>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="text-sm text-gray-900 dark:text-white">{reply.content}</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     by{" "}
                     <span className="font-medium">{reply.user.username}</span>
                     {reply.user.role === "admin" && (
@@ -421,7 +421,7 @@ export default function ModerationPage() {
                     handleAction("delete", "forumReply", reply.id)
                   }
                   disabled={actionLoading !== null}
-                  className="flex-shrink-0 rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="flex-shrink-0 rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
                 >
                   {actionLoading === `delete-forumReply-${reply.id}`
                     ? "..."

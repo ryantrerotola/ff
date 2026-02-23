@@ -58,7 +58,7 @@ export default function NotificationsPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
-        <p className="text-gray-500">{error}</p>
+        <p className="text-gray-500 dark:text-gray-400">{error}</p>
         <Link href="/login" className="mt-4 inline-block text-brand-600">Log In</Link>
       </div>
     );
@@ -67,7 +67,7 @@ export default function NotificationsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           Notifications
           {unreadCount > 0 && (
             <span className="ml-2 rounded-full bg-brand-600 px-2 py-0.5 text-xs font-medium text-white">
@@ -87,12 +87,12 @@ export default function NotificationsPage() {
 
       {loading ? (
         <div className="mt-6 space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-md bg-gray-100" />)}
+          {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-md bg-gray-100 dark:bg-gray-800" />)}
         </div>
       ) : notifications.length === 0 ? (
-        <p className="mt-8 text-center text-gray-500">No notifications yet.</p>
+        <p className="mt-8 text-center text-gray-500 dark:text-gray-400">No notifications yet.</p>
       ) : (
-        <div className="mt-6 divide-y divide-gray-200">
+        <div className="mt-6 divide-y divide-gray-200 dark:divide-gray-700">
           {notifications.map((n) => {
             const inner = (
               <div
@@ -102,10 +102,10 @@ export default function NotificationsPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{n.title}</p>
-                    <p className="text-sm text-gray-600">{n.body}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{n.title}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{n.body}</p>
                   </div>
-                  <span className="flex-shrink-0 text-xs text-gray-400">
+                  <span className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">
                     {new Date(n.createdAt).toLocaleDateString()}
                   </span>
                 </div>
@@ -118,7 +118,7 @@ export default function NotificationsPage() {
                   key={n.id}
                   href={n.link}
                   onClick={() => !n.read && markRead(n.id)}
-                  className="block rounded-md hover:bg-gray-50"
+                  className="block rounded-md hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   {inner}
                 </Link>
@@ -129,7 +129,7 @@ export default function NotificationsPage() {
               <div
                 key={n.id}
                 onClick={() => !n.read && markRead(n.id)}
-                className="cursor-pointer rounded-md hover:bg-gray-50"
+                className="cursor-pointer rounded-md hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 {inner}
               </div>

@@ -94,7 +94,7 @@ export default function ConversationPage() {
         {partner && (
           <Link
             href={`/profile/${partner.username}`}
-            className="text-sm font-medium text-gray-900 hover:text-brand-600"
+            className="text-sm font-medium text-gray-900 dark:text-white hover:text-brand-600"
           >
             {partner.displayName || partner.username}
           </Link>
@@ -106,14 +106,14 @@ export default function ConversationPage() {
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-12 animate-pulse rounded-md bg-gray-100"
+              className="h-12 animate-pulse rounded-md bg-gray-100 dark:bg-gray-800"
             />
           ))}
         </div>
       ) : (
-        <div className="flex-1 space-y-3 overflow-y-auto rounded-md border border-gray-200 p-4" style={{ maxHeight: "60vh" }}>
+        <div className="flex-1 space-y-3 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 p-4" style={{ maxHeight: "60vh" }}>
           {messages.length === 0 && (
-            <p className="text-center text-sm text-gray-500">
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
               Start the conversation!
             </p>
           )}
@@ -128,12 +128,12 @@ export default function ConversationPage() {
                   className={`max-w-xs rounded-lg px-3 py-2 text-sm ${
                     isMe
                       ? "bg-brand-600 text-white"
-                      : "bg-gray-100 text-gray-900"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white"
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                   <p
-                    className={`mt-1 text-xs ${isMe ? "text-brand-200" : "text-gray-400"}`}
+                    className={`mt-1 text-xs ${isMe ? "text-brand-200" : "text-gray-400 dark:text-gray-500"}`}
                   >
                     {new Date(msg.createdAt).toLocaleTimeString([], {
                       hour: "2-digit",
@@ -156,7 +156,7 @@ export default function ConversationPage() {
           onChange={(e) => setContent(e.target.value)}
           placeholder="Type a message..."
           maxLength={5000}
-          className="flex-1 rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         />
         <button
           type="submit"
