@@ -47,3 +47,20 @@ export const SUBSTITUTION_TYPE_LABELS: Record<string, string> = {
   aesthetic: "Aesthetic",
   availability: "Availability",
 };
+
+export const TECHNIQUE_CATEGORY_LABELS: Record<string, string> = {
+  fundamentals: "Fundamentals",
+  thread_work: "Thread Work",
+  materials_prep: "Materials Prep",
+  body_techniques: "Body Techniques",
+  hackle_techniques: "Hackle Techniques",
+  wing_techniques: "Wing Techniques",
+  head_finishing: "Head & Finishing",
+  specialty: "Specialty",
+};
+
+export const TECHNIQUE_DIFFICULTY_LABELS: Record<string, string> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+};

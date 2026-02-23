@@ -802,6 +802,62 @@ model ChallengeEntry {
   @@map("challenge_entries")
 }
 
+// ─── Learn to Tie (Tying Techniques) ──────────────────────────────────────
+
+enum TechniqueCategory {
+  fundamentals
+  thread_work
+  materials_prep
+  body_techniques
+  hackle_techniques
+  wing_techniques
+  head_finishing
+  specialty
+}
+
+enum TechniqueDifficulty {
+  beginner
+  intermediate
+  advanced
+}
+
+model TyingTechnique {
+  id           String               @id @default(uuid()) @db.Uuid
+  name         String               @unique
+  slug         String               @unique
+  category     TechniqueCategory
+  difficulty   TechniqueDifficulty
+  description  String               @db.Text
+  keyPoints    String[]             @map("key_points")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  videos TechniqueVideo[]
+
+  @@index([category])
+  @@index([difficulty])
+  @@index([slug])
+  @@map("tying_techniques")
+}
+
+model TechniqueVideo {
+  id           String    @id @default(uuid()) @db.Uuid
+  techniqueId  String    @map("technique_id") @db.Uuid
+  title        String
+  url          String    @unique
+  platform     String    @default("YouTube")
+  creatorName  String    @map("creator_name")
+  thumbnailUrl String?   @map("thumbnail_url")
+  duration     String?
+  qualityScore Int       @default(3) @map("quality_score") @db.SmallInt
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  technique TyingTechnique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+
+  @@index([techniqueId])
+  @@map("technique_videos")
+}
+
 // ─── Rate Limiting ──────────────────────────────────────────────────────────
 
 model RateLimit {

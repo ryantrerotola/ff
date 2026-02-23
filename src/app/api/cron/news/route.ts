@@ -3,10 +3,8 @@ import { scrapeNews } from "@/pipeline/scrapers/news";
 
 /**
  * Cron endpoint for scraping fly fishing news.
+ * Runs daily at 4:00 AM UTC via Vercel Cron (see vercel.json).
  * Secured with CRON_SECRET env var.
- *
- * For Vercel: add to vercel.json:
- *   { "crons": [{ "path": "/api/cron/news", "schedule": "0 8 * * *" }] }
  *
  * For external schedulers: POST /api/cron/news with Authorization header.
  */

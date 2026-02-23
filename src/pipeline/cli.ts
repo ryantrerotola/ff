@@ -14,6 +14,7 @@ import { buildConsensus } from "./normalization/consensus";
 import { ingestConsensusPattern, markAsIngested } from "./ingestion/ingest";
 
 import { scrapeNews } from "./scrapers/news";
+import { discoverTechniqueVideos } from "./scrapers/techniques";
 
 import {
   createStagedSource,
@@ -539,6 +540,15 @@ async function cmdNews() {
   log.success(`Done — ${count} articles saved/updated`);
 }
 
+// ─── COMMAND: techniques ──────────────────────────────────────────────────
+
+async function cmdTechniques(args: string[]) {
+  const slug = args[0] ?? undefined;
+  log.info(slug ? `Discovering videos for technique: ${slug}` : "Discovering videos for all techniques");
+  const count = await discoverTechniqueVideos(slug);
+  log.success(`Done — ${count} new technique videos added`);
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -560,6 +570,7 @@ Commands:
   ingest                  Write approved patterns to production DB
   import-url <url> [name] Import a single URL (YouTube or blog)
   news                    Scrape fly fishing news from RSS feeds & sites
+  techniques [slug]       Discover YouTube videos for tying techniques
   status                  Show pipeline statistics
   run [patterns...]       Run full pipeline end-to-end
 `);
@@ -567,7 +578,7 @@ Commands:
   }
 
   // Validate config for commands that need APIs
-  if (["discover", "extract", "run"].includes(command)) {
+  if (["discover", "extract", "run", "techniques"].includes(command)) {
     const errors = validateConfig();
     if (errors.length > 0) {
       console.error("\nConfiguration errors:");
@@ -606,6 +617,9 @@ Commands:
         break;
       case "news":
         await cmdNews();
+        break;
+      case "techniques":
+        await cmdTechniques(args);
         break;
       case "status":
         await cmdStatus();

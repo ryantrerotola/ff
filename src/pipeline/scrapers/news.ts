@@ -336,12 +336,104 @@ function scoreRelevance(article: ParsedArticle): number {
   return score;
 }
 
+// ─── Cross-Source Deduplication ──────────────────────────────────────────────
+
+/**
+ * Extract significant tokens from a title for comparison.
+ * Removes stop words, lowercases, strips punctuation.
+ */
+function titleTokens(title: string): Set<string> {
+  const STOP_WORDS = new Set([
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+    "has", "have", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "can", "this", "that", "these", "those",
+    "it", "its", "how", "what", "when", "where", "who", "why", "new",
+    "about", "into", "over", "after", "before", "up", "out", "your",
+  ]);
+
+  return new Set(
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !STOP_WORDS.has(w))
+  );
+}
+
+/**
+ * Compute Jaccard similarity between two token sets (0-1).
+ */
+function tokenSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 0;
+  let intersection = 0;
+  for (const token of a) {
+    if (b.has(token)) intersection++;
+  }
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+/**
+ * Deduplicate articles across sources. When multiple articles cover the same
+ * story (similarity >= threshold), keep the one with the highest relevance score.
+ */
+function deduplicateArticles(
+  articles: { article: ParsedArticle; score: number }[],
+  similarityThreshold = 0.5,
+): { article: ParsedArticle; score: number }[] {
+  const tokenCache = articles.map((a) => ({
+    ...a,
+    tokens: titleTokens(a.article.title),
+  }));
+
+  const kept: typeof tokenCache = [];
+
+  for (const candidate of tokenCache) {
+    let isDuplicate = false;
+
+    for (let i = 0; i < kept.length; i++) {
+      const existing = kept[i]!;
+      const sim = tokenSimilarity(candidate.tokens, existing.tokens);
+
+      if (sim >= similarityThreshold) {
+        isDuplicate = true;
+        // Keep the higher-scored version
+        if (candidate.score > existing.score) {
+          kept[i] = candidate;
+          log.info("Dedup: replaced article", {
+            kept: candidate.article.title.slice(0, 60),
+            dropped: existing.article.title.slice(0, 60),
+            source: candidate.article.sourceName,
+            similarity: sim.toFixed(2),
+          });
+        } else {
+          log.info("Dedup: skipped duplicate", {
+            kept: existing.article.title.slice(0, 60),
+            dropped: candidate.article.title.slice(0, 60),
+            source: candidate.article.sourceName,
+            similarity: sim.toFixed(2),
+          });
+        }
+        break;
+      }
+    }
+
+    if (!isDuplicate) {
+      kept.push(candidate);
+    }
+  }
+
+  return kept.map(({ article, score }) => ({ article, score }));
+}
+
 // ─── Main Scrape Function ───────────────────────────────────────────────────
 
 export async function scrapeNews(maxPerSource = 10): Promise<number> {
   log.info(`Scraping news from ${NEWS_SOURCES.length} sources`);
 
-  let totalNew = 0;
+  // Collect all articles from all sources first (for cross-source dedup)
+  const allScored: { article: ParsedArticle; score: number }[] = [];
 
   for (const source of NEWS_SOURCES) {
     try {
@@ -375,44 +467,56 @@ export async function scrapeNews(maxPerSource = 10): Promise<number> {
         continue;
       }
 
-      // Score and sort by relevance
+      // Score and sort by relevance, take top per source
       const scored = articles
         .map((a) => ({ article: a, score: scoreRelevance(a) }))
         .filter((s) => s.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, maxPerSource);
 
-      // Upsert into database
-      for (const { article } of scored) {
-        try {
-          await prisma.newsArticle.upsert({
-            where: { url: article.url },
-            create: {
-              url: article.url,
-              title: article.title,
-              summary: article.summary,
-              sourceName: article.sourceName,
-              sourceUrl: article.sourceUrl,
-              author: article.author,
-              imageUrl: article.imageUrl,
-              publishedAt: article.publishedAt,
-            },
-            update: {
-              title: article.title,
-              summary: article.summary,
-              imageUrl: article.imageUrl,
-            },
-          });
-          totalNew++;
-        } catch {
-          // Skip duplicates or invalid dates
-        }
-      }
+      allScored.push(...scored);
     } catch (err) {
       log.error("Failed to scrape source", {
         source: source.name,
         error: String(err),
       });
+    }
+  }
+
+  // Sort all articles by score (best first) then deduplicate across sources
+  allScored.sort((a, b) => b.score - a.score);
+  const deduplicated = deduplicateArticles(allScored);
+
+  log.info(
+    `Deduplication: ${allScored.length} articles -> ${deduplicated.length} unique stories`
+  );
+
+  // Upsert unique articles into database
+  let totalNew = 0;
+
+  for (const { article } of deduplicated) {
+    try {
+      await prisma.newsArticle.upsert({
+        where: { url: article.url },
+        create: {
+          url: article.url,
+          title: article.title,
+          summary: article.summary,
+          sourceName: article.sourceName,
+          sourceUrl: article.sourceUrl,
+          author: article.author,
+          imageUrl: article.imageUrl,
+          publishedAt: article.publishedAt,
+        },
+        update: {
+          title: article.title,
+          summary: article.summary,
+          imageUrl: article.imageUrl,
+        },
+      });
+      totalNew++;
+    } catch {
+      // Skip duplicates or invalid dates
     }
   }
 
