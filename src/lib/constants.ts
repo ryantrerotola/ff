@@ -1,6 +1,32 @@
+const DEFAULT_APP_URL = "http://localhost:3000";
+
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FlyPatternDB";
-export const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+export function resolveAppUrl(
+  appUrl: string | undefined,
+  vercelUrl: string | undefined,
+): string {
+  const raw = appUrl?.trim() || vercelUrl?.trim();
+
+  if (!raw) {
+    return DEFAULT_APP_URL;
+  }
+
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+
+  try {
+    const parsed = new URL(withProtocol);
+    return parsed.origin;
+  } catch {
+    return DEFAULT_APP_URL;
+  }
+}
+
+export const APP_URL = resolveAppUrl(
+  process.env.NEXT_PUBLIC_APP_URL,
+  process.env.VERCEL_URL,
+);
+
 export const APP_DESCRIPTION =
   "The structured database for fly fishing patterns. Browse fly tying recipes, materials, substitutes, and instructional resources.";
 

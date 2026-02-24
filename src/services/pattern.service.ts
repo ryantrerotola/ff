@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma";
+import { isDatabaseConfigured, prisma } from "@/lib/prisma";
+import { withDatabaseRetry } from "@/lib/prisma-errors";
 import type {
   FlyPatternDetail,
   FlyPatternListItem,
@@ -93,16 +94,41 @@ export async function getPatterns(
   if (difficulty) where.difficulty = difficulty;
   if (waterType) where.waterType = waterType;
 
-  const [data, total] = await Promise.all([
-    prisma.flyPattern.findMany({
-      where,
-      select: patternListSelect,
-      orderBy: { name: "asc" },
-      skip: (page - 1) * limit,
-      take: limit,
-    }),
-    prisma.flyPattern.count({ where }),
-  ]);
+  if (!isDatabaseConfigured()) {
+    console.error(
+      "[PatternService] DATABASE_URL is not configured; returning empty pattern list."
+    );
+    return {
+      data: [],
+      total: 0,
+      page,
+      limit,
+      totalPages: 0,
+    };
+  }
+
+  let data: FlyPatternListItem[] = [];
+  let total = 0;
+
+  try {
+    [data, total] = await withDatabaseRetry(() =>
+      Promise.all([
+        prisma.flyPattern.findMany({
+          where,
+          select: patternListSelect,
+          orderBy: { name: "asc" },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.flyPattern.count({ where }),
+      ])
+    );
+  } catch (error) {
+    console.error(
+      "[PatternService] Failed to load patterns; returning empty result.",
+      error
+    );
+  }
 
   return {
     data,
@@ -116,17 +142,51 @@ export async function getPatterns(
 export async function getPatternBySlug(
   slug: string
 ): Promise<FlyPatternDetail | null> {
-  const pattern = await prisma.flyPattern.findUnique({
-    where: { slug },
-    include: patternDetailInclude,
-  });
+  if (!isDatabaseConfigured()) {
+    console.error(
+      `[PatternService] DATABASE_URL is not configured; cannot load pattern \"${slug}\".`
+    );
+    return null;
+  }
 
-  return pattern as FlyPatternDetail | null;
+  let pattern: FlyPatternDetail | null = null;
+
+  try {
+    pattern = (await withDatabaseRetry(() =>
+      prisma.flyPattern.findUnique({
+        where: { slug },
+        include: patternDetailInclude,
+      })
+    )) as FlyPatternDetail | null;
+  } catch (error) {
+    console.error(
+      `[PatternService] Failed to load pattern \"${slug}\".`,
+      error
+    );
+  }
+
+  return pattern;
 }
 
 export async function getAllPatternSlugs(): Promise<string[]> {
-  const patterns = await prisma.flyPattern.findMany({
-    select: { slug: true },
-  });
+  if (!isDatabaseConfigured()) {
+    console.error(
+      "[PatternService] DATABASE_URL is not configured; returning no slugs."
+    );
+    return [];
+  }
+
+  let patterns: { slug: string }[] = [];
+
+  try {
+    patterns = await withDatabaseRetry(() =>
+      prisma.flyPattern.findMany({
+        select: { slug: true },
+      })
+    );
+  } catch (error) {
+    console.error("[PatternService] Failed to load pattern slugs.", error);
+  }
+
   return patterns.map((p) => p.slug);
 }
