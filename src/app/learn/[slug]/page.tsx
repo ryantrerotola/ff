@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { prisma, withRetry } from "@/lib/prisma";
 import {
   TECHNIQUE_CATEGORY_LABELS,
   TECHNIQUE_DIFFICULTY_LABELS,
@@ -13,27 +13,16 @@ interface TechniquePageProps {
   params: Promise<{ slug: string }>;
 }
 
-export const dynamicParams = true;
-
-export async function generateStaticParams() {
-  try {
-    const techniques = await prisma.tyingTechnique.findMany({
-      select: { slug: true },
-    });
-    return techniques.map((t) => ({ slug: t.slug }));
-  } catch {
-    return [];
-  }
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
 }: TechniquePageProps): Promise<Metadata> {
   const { slug } = await params;
   try {
-    const technique = await prisma.tyingTechnique.findUnique({
-      where: { slug },
-    });
+    const technique = await withRetry(() =>
+      prisma.tyingTechnique.findUnique({ where: { slug } }),
+    );
 
     if (!technique) {
       return { title: "Technique Not Found" };
@@ -135,14 +124,16 @@ export default async function TechniquePage({ params }: TechniquePageProps) {
 
   let technique;
   try {
-    technique = await prisma.tyingTechnique.findUnique({
-      where: { slug },
-      include: {
-        videos: {
-          orderBy: { qualityScore: "desc" },
+    technique = await withRetry(() =>
+      prisma.tyingTechnique.findUnique({
+        where: { slug },
+        include: {
+          videos: {
+            orderBy: { qualityScore: "desc" },
+          },
         },
-      },
-    });
+      }),
+    );
   } catch {
     notFound();
   }
@@ -157,7 +148,7 @@ export default async function TechniquePage({ params }: TechniquePageProps) {
 
   try {
     // Fetch related techniques (same category, excluding current)
-    relatedTechniques = await prisma.tyingTechnique.findMany({
+    relatedTechniques = await withRetry(() => prisma.tyingTechnique.findMany({
       where: {
         category: technique.category,
         id: { not: technique.id },
@@ -167,7 +158,7 @@ export default async function TechniquePage({ params }: TechniquePageProps) {
       },
       orderBy: { name: "asc" },
       take: 6,
-    });
+    }));
   } catch {
     // Table query may fail if migration not applied
   }

@@ -10,6 +10,8 @@ import {
 } from "@/lib/constants";
 import { RecipePrintButton } from "./RecipePrintButton";
 
+export const dynamic = "force-dynamic";
+
 interface RecipePageProps {
   params: Promise<{ slug: string }>;
 }
