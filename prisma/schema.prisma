@@ -458,6 +458,7 @@ model HatchEntry {
   flyPatternId  String?  @map("fly_pattern_id") @db.Uuid
   patternName   String   @map("pattern_name")
   timeOfDay     String?  @map("time_of_day")
+  targetFish    String?  @map("target_fish")
   notes         String?  @db.Text
   submittedById String?  @map("submitted_by_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at")
@@ -470,6 +471,7 @@ model HatchEntry {
   @@index([region])
   @@index([month])
   @@index([species])
+  @@index([targetFish])
   @@map("hatch_entries")
 }
 

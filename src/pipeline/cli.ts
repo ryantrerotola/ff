@@ -549,6 +549,225 @@ async function cmdTechniques(args: string[]) {
   log.success(`Done — ${count} new technique videos added`);
 }
 
+// ─── COMMAND: add-techniques ─────────────────────────────────────────────
+
+async function cmdAddTechniques(args: string[]) {
+  if (args.length === 0) {
+    console.error("Usage: pipeline add-techniques <name1> <name2> ...");
+    console.error('Example: pipeline add-techniques "Dubbing Loop" "Parachute Post" "CDC Puff"');
+    process.exit(1);
+  }
+
+  const CATEGORY_HINTS: Record<string, string> = {
+    thread: "thread_work", whip: "thread_work", bobbin: "thread_work",
+    dubbing: "body_techniques", body: "body_techniques", ribbing: "body_techniques",
+    chenille: "body_techniques", peacock: "body_techniques", tinsel: "body_techniques",
+    floss: "body_techniques", wire: "body_techniques", wrap: "body_techniques",
+    hackle: "hackle_techniques", palmer: "hackle_techniques", collar: "hackle_techniques",
+    parachute: "hackle_techniques",
+    wing: "wing_techniques", elk: "wing_techniques", deer: "wing_techniques",
+    cdc: "wing_techniques", hair: "wing_techniques", feather: "wing_techniques",
+    head: "head_finishing", cement: "head_finishing", resin: "head_finishing",
+    uv: "head_finishing", finish: "head_finishing",
+    vise: "fundamentals", hook: "fundamentals", setup: "fundamentals",
+    stacker: "materials_prep", prep: "materials_prep", clean: "materials_prep",
+    euro: "specialty", spin: "specialty", articulated: "specialty",
+  };
+
+  function guessCategory(name: string): string {
+    const lower = name.toLowerCase();
+    for (const [hint, cat] of Object.entries(CATEGORY_HINTS)) {
+      if (lower.includes(hint)) return cat;
+    }
+    return "specialty";
+  }
+
+  function guessDifficulty(name: string): string {
+    const lower = name.toLowerCase();
+    if (["advanced", "euro", "articulated", "spinning deer", "complex", "extended"].some((k) => lower.includes(k))) return "advanced";
+    if (["basic", "simple", "setup", "starting", "intro", "beginner"].some((k) => lower.includes(k))) return "beginner";
+    return "intermediate";
+  }
+
+  log.info(`Adding ${args.length} technique(s)`);
+
+  let added = 0;
+  let skipped = 0;
+
+  for (const name of args) {
+    const techSlug = slugify(name);
+    const category = guessCategory(name);
+    const difficulty = guessDifficulty(name);
+
+    const existing = await prisma.tyingTechnique.findUnique({
+      where: { slug: techSlug },
+    });
+
+    if (existing) {
+      log.info(`Skipped (already exists): ${name}`);
+      skipped++;
+      continue;
+    }
+
+    await prisma.tyingTechnique.create({
+      data: {
+        name,
+        slug: techSlug,
+        category: category as never,
+        difficulty: difficulty as never,
+        description: `Learn the ${name} technique for fly tying. This technique is essential for creating effective fly patterns.`,
+        keyPoints: [
+          `Practice ${name} with different materials to build proficiency`,
+          "Start slow and focus on consistency before speed",
+          "Watch the recommended video tutorials below for visual guidance",
+        ],
+      },
+    });
+
+    log.success(`Added: ${name} (${category}, ${difficulty})`);
+    added++;
+  }
+
+  log.success(`Done — ${added} added, ${skipped} skipped`);
+
+  if (added > 0) {
+    log.info("Tip: Run 'npm run pipeline:techniques' to discover videos for the new techniques");
+  }
+}
+
+// ─── COMMAND: add-hatches ────────────────────────────────────────────────
+
+async function cmdAddHatches(args: string[]) {
+  if (args.length === 0) {
+    console.error(`Usage: pipeline add-hatches <json-file>
+       pipeline add-hatches --inline '<json-array>'
+
+JSON format (array of objects):
+  [{
+    "waterBody": "South Platte River",
+    "region": "Rocky Mountains",
+    "state": "CO",
+    "month": 3,
+    "species": "Baetis",
+    "insectName": "Blue-Winged Olive",
+    "insectType": "mayfly",
+    "patternName": "Pheasant Tail Nymph",
+    "timeOfDay": "afternoon",
+    "notes": "Optional notes"
+  }]
+
+insectType must be: mayfly, caddis, stonefly, midge, terrestrial, other`);
+    process.exit(1);
+  }
+
+  const VALID_INSECT_TYPES = ["mayfly", "caddis", "stonefly", "midge", "terrestrial", "other"];
+
+  let rawJson: string;
+  if (args[0] === "--inline") {
+    rawJson = args.slice(1).join(" ");
+  } else {
+    const fs = await import("fs");
+    const filePath = args[0]!;
+    if (!fs.existsSync(filePath)) {
+      log.error(`File not found: ${filePath}`);
+      process.exit(1);
+    }
+    rawJson = fs.readFileSync(filePath, "utf-8");
+  }
+
+  let entries: Array<{
+    waterBody: string;
+    region: string;
+    state?: string;
+    month: number;
+    species: string;
+    insectName: string;
+    insectType: string;
+    patternName: string;
+    timeOfDay?: string;
+    targetFish?: string;
+    notes?: string;
+  }>;
+
+  try {
+    entries = JSON.parse(rawJson);
+    if (!Array.isArray(entries)) {
+      log.error("JSON must be an array of hatch entries");
+      process.exit(1);
+    }
+  } catch (e) {
+    log.error(`Invalid JSON: ${String(e)}`);
+    process.exit(1);
+  }
+
+  // Validate entries
+  const errors: string[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i]!;
+    if (!e.waterBody) errors.push(`Entry ${i}: missing waterBody`);
+    if (!e.region) errors.push(`Entry ${i}: missing region`);
+    if (!e.month || e.month < 1 || e.month > 12) errors.push(`Entry ${i}: month must be 1-12`);
+    if (!e.species) errors.push(`Entry ${i}: missing species`);
+    if (!e.insectName) errors.push(`Entry ${i}: missing insectName`);
+    if (!e.insectType || !VALID_INSECT_TYPES.includes(e.insectType)) {
+      errors.push(`Entry ${i}: insectType must be one of: ${VALID_INSECT_TYPES.join(", ")}`);
+    }
+    if (!e.patternName) errors.push(`Entry ${i}: missing patternName`);
+  }
+
+  if (errors.length > 0) {
+    for (const err of errors) log.error(err);
+    process.exit(1);
+  }
+
+  log.info(`Adding ${entries.length} hatch entries`);
+
+  // Check for duplicates (same waterBody + month + insectName)
+  let added = 0;
+  let skipped = 0;
+
+  for (const entry of entries) {
+    const existing = await prisma.hatchEntry.findFirst({
+      where: {
+        waterBody: entry.waterBody,
+        month: entry.month,
+        insectName: entry.insectName,
+      },
+    });
+
+    if (existing) {
+      log.info(`Skipped (duplicate): ${entry.waterBody} - ${entry.insectName} (month ${entry.month})`);
+      skipped++;
+      continue;
+    }
+
+    await prisma.hatchEntry.create({
+      data: {
+        waterBody: entry.waterBody,
+        region: entry.region,
+        state: entry.state ?? null,
+        month: entry.month,
+        species: entry.species,
+        insectName: entry.insectName,
+        insectType: entry.insectType,
+        patternName: entry.patternName,
+        timeOfDay: entry.timeOfDay ?? null,
+        targetFish: entry.targetFish ?? null,
+        notes: entry.notes ?? null,
+      },
+    });
+    added++;
+  }
+
+  log.success(`Done — ${added} hatch entries added, ${skipped} skipped (duplicates)`);
+
+  // Summary
+  const waterBodies = [...new Set(entries.map((e) => e.waterBody))];
+  const regions = [...new Set(entries.map((e) => e.region))];
+  log.info(`Water bodies: ${waterBodies.join(", ")}`);
+  log.info(`Regions: ${regions.join(", ")}`);
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -561,18 +780,20 @@ FlyPatternDB Data Pipeline
 Usage: tsx src/pipeline/cli.ts <command> [args]
 
 Commands:
-  discover [patterns...]  Search YouTube & blogs for fly pattern sources
-                          If no patterns specified, uses the full seed list
-  scrape                  Scrape content from discovered sources
-  extract                 Run LLM extraction on scraped content
-  normalize               Normalize and build consensus across sources
-  auto-approve            Auto-approve high-confidence extractions
-  ingest                  Write approved patterns to production DB
-  import-url <url> [name] Import a single URL (YouTube or blog)
-  news                    Scrape fly fishing news from RSS feeds & sites
-  techniques [slug]       Discover YouTube videos for tying techniques
-  status                  Show pipeline statistics
-  run [patterns...]       Run full pipeline end-to-end
+  discover [patterns...]       Search YouTube & blogs for fly pattern sources
+                               If no patterns specified, uses the full seed list
+  scrape                       Scrape content from discovered sources
+  extract                      Run LLM extraction on scraped content
+  normalize                    Normalize and build consensus across sources
+  auto-approve                 Auto-approve high-confidence extractions
+  ingest                       Write approved patterns to production DB
+  import-url <url> [name]      Import a single URL (YouTube or blog)
+  news                         Scrape fly fishing news from RSS feeds & sites
+  techniques [slug]            Discover YouTube videos for tying techniques
+  add-techniques <names...>    Add new tying techniques to the database
+  add-hatches <file|--inline>  Add hatch chart entries from JSON file or inline
+  status                       Show pipeline statistics
+  run [patterns...]            Run full pipeline end-to-end
 `);
     process.exit(0);
   }
@@ -620,6 +841,12 @@ Commands:
         break;
       case "techniques":
         await cmdTechniques(args);
+        break;
+      case "add-techniques":
+        await cmdAddTechniques(args);
+        break;
+      case "add-hatches":
+        await cmdAddHatches(args);
         break;
       case "status":
         await cmdStatus();

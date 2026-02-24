@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { MATERIAL_TYPE_LABELS, CATEGORY_LABELS } from "@/lib/constants";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 
 interface InventoryMaterial {
   id: string;
@@ -57,6 +58,45 @@ export default function FlyBoxPage() {
 
   // Active section filter
   const [activeType, setActiveType] = useState<string | "all">("all");
+
+  // Barcode scanner
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanResult, setScanResult] = useState<{ message: string; materials?: Array<{ id: string; name: string; type: string }> } | null>(null);
+
+  const handleBarcodeScan = useCallback(async (barcode: string) => {
+    setShowScanner(false);
+    setScanResult(null);
+
+    try {
+      const res = await fetch("/api/fly-box/barcode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ barcode }),
+      });
+
+      const data = await res.json();
+
+      if (data.matched && data.materials?.length > 0) {
+        // Auto-add first matched material
+        const material = data.materials[0];
+        await addMaterial(material.id);
+        setScanResult({
+          message: `Added "${material.name}" from barcode scan (${data.productName})`,
+          materials: data.materials.slice(1),
+        });
+      } else {
+        setScanResult({
+          message: data.message || `Barcode ${barcode} not found. Try searching manually.`,
+        });
+        setShowSearch(true);
+        setSearchQuery(data.productName || barcode);
+      }
+    } catch {
+      setScanResult({ message: "Barcode lookup failed. Try searching manually." });
+      setShowSearch(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -184,12 +224,25 @@ export default function FlyBoxPage() {
             Track your material inventory and see what you can tie.
           </p>
         </div>
-        <button
-          onClick={() => setShowSearch(!showSearch)}
-          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          {showSearch ? "Close" : "Add Materials"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowScanner(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+            title="Scan barcode to add material"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h3v3h-3v-3z" />
+            </svg>
+            Scan
+          </button>
+          <button
+            onClick={() => setShowSearch(!showSearch)}
+            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+          >
+            {showSearch ? "Close" : "Add Materials"}
+          </button>
+        </div>
       </div>
 
       {/* Quick Stats */}
@@ -219,6 +272,45 @@ export default function FlyBoxPage() {
           </div>
         </div>
       </div>
+
+      {/* Barcode Scanner */}
+      {showScanner && (
+        <BarcodeScanner
+          onScan={handleBarcodeScan}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
+      {/* Scan Result */}
+      {scanResult && (
+        <div className="mt-4 rounded-md border border-brand-200 bg-brand-50 p-3 dark:border-brand-800 dark:bg-brand-900/20">
+          <div className="flex items-start justify-between">
+            <p className="text-sm text-brand-700 dark:text-brand-300">{scanResult.message}</p>
+            <button
+              onClick={() => setScanResult(null)}
+              className="ml-2 shrink-0 text-brand-400 hover:text-brand-600"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          {scanResult.materials && scanResult.materials.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span className="text-xs text-brand-600 dark:text-brand-400">Also matched:</span>
+              {scanResult.materials.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => addMaterial(m.id)}
+                  className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-brand-300 hover:bg-brand-100 dark:bg-gray-800 dark:text-brand-300 dark:ring-brand-600"
+                >
+                  + {m.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Search / Add Materials */}
       {showSearch && (

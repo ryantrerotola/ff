@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { isDatabaseConfigured, prisma } from "@/lib/prisma";
+import { isDatabaseConfigured, prisma, withRetry } from "@/lib/prisma";
 
 const MONTH_NAMES = [
   "January",
@@ -25,7 +25,7 @@ async function loadHatches(currentMonth: number) {
       },
     },
     orderBy: [{ insectName: "asc" }],
-    take: 8,
+    take: 30,
   });
 }
 
@@ -39,10 +39,10 @@ export async function SeasonalRecommendations() {
 
   const currentMonth = new Date().getMonth() + 1;
 
-  let hatches: Awaited<ReturnType<typeof loadHatches>> = [];
+  let rawHatches: Awaited<ReturnType<typeof loadHatches>> = [];
 
   try {
-    hatches = await loadHatches(currentMonth);
+    rawHatches = await withRetry(() => loadHatches(currentMonth));
   } catch (error) {
     console.error(
       "[SeasonalRecommendations] Failed to load seasonal hatches; skipping section.",
@@ -50,6 +50,15 @@ export async function SeasonalRecommendations() {
     );
     return null;
   }
+
+  // Deduplicate by insectName — keep the first (which has flyPattern link if available)
+  const seen = new Set<string>();
+  const hatches = rawHatches.filter((h) => {
+    const key = h.insectName.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 8);
 
   if (hatches.length === 0) return null;
 
@@ -63,42 +72,45 @@ export async function SeasonalRecommendations() {
       </p>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {hatches.map((hatch) => (
-          <div
-            key={hatch.id}
-            className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
-          >
-            <div className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
-              {hatch.insectType}
-            </div>
-            <h3 className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
-              {hatch.insectName}
-            </h3>
-            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              {hatch.species}
-            </p>
+        {hatches.map((hatch) => {
+          const patternHref = hatch.flyPattern
+            ? `/patterns/${hatch.flyPattern.slug}`
+            : null;
+          const patternDisplay = hatch.flyPattern?.name ?? hatch.patternName;
 
-            <div className="mt-3 flex items-center justify-between">
-              {hatch.flyPattern ? (
-                <Link
-                  href={`/patterns/${hatch.flyPattern.slug}`}
-                  className="text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-                >
-                  {hatch.flyPattern.name}
-                </Link>
-              ) : (
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {hatch.patternName}
+          const card = (
+            <div className="rounded-lg border border-gray-200 bg-white p-4 transition hover:border-gray-300 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-600">
+              <div className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+                {hatch.insectType}
+              </div>
+              <h3 className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+                {hatch.insectName}
+              </h3>
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                {hatch.species}
+              </p>
+
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-sm font-medium text-brand-600 dark:text-brand-400">
+                  {patternDisplay}
                 </span>
-              )}
-              {hatch.timeOfDay && (
-                <span className="text-xs text-gray-400 dark:text-gray-500">
-                  {hatch.timeOfDay}
-                </span>
-              )}
+                {hatch.timeOfDay && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    {hatch.timeOfDay}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+
+          return patternHref ? (
+            <Link key={hatch.id} href={patternHref}>
+              {card}
+            </Link>
+          ) : (
+            <div key={hatch.id}>{card}</div>
+          );
+        })}
       </div>
 
       <div className="mt-3 text-right">

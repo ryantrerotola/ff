@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // Fetch all materials for the given patterns, including affiliate links
+  // Fetch all materials for the given patterns, including links
   const patternMaterials = await prisma.flyPatternMaterial.findMany({
     where: { flyPatternId: { in: patternIds } },
     include: {
@@ -34,6 +34,13 @@ export async function POST(request: Request) {
     orderBy: { position: "asc" },
   });
 
+  // Get user's owned materials for comparison
+  const ownedMaterials = await prisma.userMaterial.findMany({
+    where: { userId: user.id },
+    select: { materialId: true },
+  });
+  const ownedSet = new Set(ownedMaterials.map((m) => m.materialId));
+
   // Deduplicate materials: group by material ID and collect pattern names
   const materialMap = new Map<
     string,
@@ -45,6 +52,7 @@ export async function POST(request: Request) {
         description: string | null;
       };
       patterns: string[];
+      owned: boolean;
       affiliateLinks: Array<{
         id: string;
         retailer: string;
@@ -69,6 +77,7 @@ export async function POST(request: Request) {
           description: pm.material.description,
         },
         patterns: [pm.flyPattern.name],
+        owned: ownedSet.has(pm.material.id),
         affiliateLinks: pm.material.affiliateLinks.map((link) => ({
           id: link.id,
           retailer: link.retailer,
@@ -84,5 +93,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     materials,
     totalPatterns: patternIds.length,
+    ownedCount: materials.filter((m) => m.owned).length,
+    needCount: materials.filter((m) => !m.owned).length,
   });
 }

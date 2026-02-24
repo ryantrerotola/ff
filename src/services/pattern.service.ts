@@ -1,4 +1,4 @@
-import { isDatabaseConfigured, prisma } from "@/lib/prisma";
+import { isDatabaseConfigured, prisma, withRetry } from "@/lib/prisma";
 import type {
   FlyPatternDetail,
   FlyPatternListItem,
@@ -110,19 +110,21 @@ export async function getPatterns(
   let total = 0;
 
   try {
-    [data, total] = await Promise.all([
-      prisma.flyPattern.findMany({
-        where,
-        select: patternListSelect,
-        orderBy: { name: "asc" },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.flyPattern.count({ where }),
-    ]);
+    [data, total] = await withRetry(() =>
+      Promise.all([
+        prisma.flyPattern.findMany({
+          where,
+          select: patternListSelect,
+          orderBy: { name: "asc" },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.flyPattern.count({ where }),
+      ]),
+    );
   } catch (error) {
     console.error(
-      "[PatternService] Failed to load patterns; returning empty result.",
+      "[PatternService] Failed to load patterns after retries.",
       error,
     );
   }
@@ -149,13 +151,15 @@ export async function getPatternBySlug(
   let pattern: FlyPatternDetail | null = null;
 
   try {
-    pattern = (await prisma.flyPattern.findUnique({
-      where: { slug },
-      include: patternDetailInclude,
-    })) as FlyPatternDetail | null;
+    pattern = await withRetry(async () =>
+      (await prisma.flyPattern.findUnique({
+        where: { slug },
+        include: patternDetailInclude,
+      })) as FlyPatternDetail | null,
+    );
   } catch (error) {
     console.error(
-      `[PatternService] Failed to load pattern \"${slug}\".`,
+      `[PatternService] Failed to load pattern "${slug}" after retries.`,
       error,
     );
   }

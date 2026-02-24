@@ -1,7 +1,9 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, withRetry } from "@/lib/prisma";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NewsEngagement } from "@/components/NewsEngagement";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Fly Fishing News",
@@ -34,18 +36,20 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
       ? { votes: { _count: "desc" as const } }
       : { publishedAt: "desc" as const };
 
-  const [articles, total] = await Promise.all([
-    prisma.newsArticle.findMany({
-      where,
-      include: {
-        _count: { select: { comments: true, votes: true } },
-      },
-      orderBy,
-      skip: offset,
-      take: limit,
-    }),
-    prisma.newsArticle.count({ where }),
-  ]);
+  const [articles, total] = await withRetry(() =>
+    Promise.all([
+      prisma.newsArticle.findMany({
+        where,
+        include: {
+          _count: { select: { comments: true, votes: true } },
+        },
+        orderBy,
+        skip: offset,
+        take: limit,
+      }),
+      prisma.newsArticle.count({ where }),
+    ]),
+  );
 
   const totalPages = Math.ceil(total / limit);
 
