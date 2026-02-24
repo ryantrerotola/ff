@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { isDatabaseConfigured, prisma } from "@/lib/prisma";
+import { isDatabaseConfigured, prisma, withRetry } from "@/lib/prisma";
 
 const MONTH_NAMES = [
   "January",
@@ -42,7 +42,7 @@ export async function SeasonalRecommendations() {
   let hatches: Awaited<ReturnType<typeof loadHatches>> = [];
 
   try {
-    hatches = await loadHatches(currentMonth);
+    hatches = await withRetry(() => loadHatches(currentMonth));
   } catch (error) {
     console.error(
       "[SeasonalRecommendations] Failed to load seasonal hatches; skipping section.",

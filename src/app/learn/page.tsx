@@ -1,10 +1,12 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, withRetry } from "@/lib/prisma";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
   TECHNIQUE_CATEGORY_LABELS,
   TECHNIQUE_DIFFICULTY_LABELS,
 } from "@/lib/constants";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Learn to Tie",
@@ -56,13 +58,15 @@ export default async function LearnPage({ searchParams }: LearnPageProps) {
   let techniques: TechniqueRow[] = [];
 
   try {
-    techniques = await prisma.tyingTechnique.findMany({
-      where,
-      include: {
-        _count: { select: { videos: true } },
-      },
-      orderBy: [{ category: "asc" }, { name: "asc" }],
-    });
+    techniques = await withRetry(() =>
+      prisma.tyingTechnique.findMany({
+        where,
+        include: {
+          _count: { select: { videos: true } },
+        },
+        orderBy: [{ category: "asc" }, { name: "asc" }],
+      }),
+    );
   } catch {
     // Table may not exist yet if migration hasn't been applied
   }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, withRetry } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
@@ -49,13 +49,15 @@ export async function GET(request: NextRequest) {
     ];
   }
 
-  const techniques = await prisma.tyingTechnique.findMany({
-    where,
-    include: {
-      _count: { select: { videos: true } },
-    },
-    orderBy: [{ category: "asc" }, { name: "asc" }],
-  });
+  const techniques = await withRetry(() =>
+    prisma.tyingTechnique.findMany({
+      where,
+      include: {
+        _count: { select: { videos: true } },
+      },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+    }),
+  );
 
   return NextResponse.json({
     techniques: techniques.map((t) => ({

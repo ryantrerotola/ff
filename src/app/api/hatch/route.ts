@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, withRetry } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
@@ -14,22 +14,26 @@ export async function GET(request: NextRequest) {
   if (month) where.month = Number(month);
   if (species) where.species = { contains: species, mode: "insensitive" };
 
-  const entries = await prisma.hatchEntry.findMany({
-    where,
-    include: {
-      flyPattern: { select: { id: true, name: true, slug: true } },
-      submittedBy: { select: { username: true, displayName: true } },
-    },
-    orderBy: [{ month: "asc" }, { insectName: "asc" }],
-    take: 100,
-  });
+  const entries = await withRetry(() =>
+    prisma.hatchEntry.findMany({
+      where,
+      include: {
+        flyPattern: { select: { id: true, name: true, slug: true } },
+        submittedBy: { select: { username: true, displayName: true } },
+      },
+      orderBy: [{ month: "asc" }, { insectName: "asc" }],
+      take: 100,
+    }),
+  );
 
   // Get distinct values for filter dropdowns
-  const [regions, waterBodies, speciesList] = await Promise.all([
-    prisma.hatchEntry.findMany({ select: { region: true }, distinct: ["region"], orderBy: { region: "asc" } }),
-    prisma.hatchEntry.findMany({ select: { waterBody: true }, distinct: ["waterBody"], orderBy: { waterBody: "asc" } }),
-    prisma.hatchEntry.findMany({ select: { species: true }, distinct: ["species"], orderBy: { species: "asc" } }),
-  ]);
+  const [regions, waterBodies, speciesList] = await withRetry(() =>
+    Promise.all([
+      prisma.hatchEntry.findMany({ select: { region: true }, distinct: ["region"], orderBy: { region: "asc" } }),
+      prisma.hatchEntry.findMany({ select: { waterBody: true }, distinct: ["waterBody"], orderBy: { waterBody: "asc" } }),
+      prisma.hatchEntry.findMany({ select: { species: true }, distinct: ["species"], orderBy: { species: "asc" } }),
+    ]),
+  );
 
   return NextResponse.json({
     entries,
