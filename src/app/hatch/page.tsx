@@ -19,6 +19,7 @@ interface HatchEntry {
   insectType: string;
   patternName: string;
   timeOfDay: string | null;
+  targetFish: string | null;
   notes: string | null;
   flyPattern: { id: string; name: string; slug: string } | null;
   submittedBy: { username: string; displayName: string | null } | null;
@@ -28,16 +29,18 @@ interface Filters {
   regions: string[];
   waterBodies: string[];
   species: string[];
+  targetFish: string[];
 }
 
 export default function HatchPage() {
   const [entries, setEntries] = useState<HatchEntry[]>([]);
-  const [filters, setFilters] = useState<Filters>({ regions: [], waterBodies: [], species: [] });
+  const [filters, setFilters] = useState<Filters>({ regions: [], waterBodies: [], species: [], targetFish: [] });
   const [loading, setLoading] = useState(true);
   const [waterBody, setWaterBody] = useState("");
   const [region, setRegion] = useState("");
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [species, setSpecies] = useState("");
+  const [targetFish, setTargetFish] = useState("");
   const [showForm, setShowForm] = useState(false);
 
   function fetchEntries() {
@@ -47,6 +50,7 @@ export default function HatchPage() {
     if (region) params.set("region", region);
     if (month) params.set("month", String(month));
     if (species) params.set("species", species);
+    if (targetFish) params.set("targetFish", targetFish);
 
     fetch(`/api/hatch?${params}`)
       .then((r) => r.json())
@@ -73,7 +77,7 @@ export default function HatchPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Hatch Chart</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Find what&apos;s hatching on your water. Search by location, month, and species.
+            Find what&apos;s hatching on your water. Filter by location, month, species, or target fish.
           </p>
         </div>
         <button
@@ -85,16 +89,16 @@ export default function HatchPage() {
       </div>
 
       {/* Submission form */}
-      {showForm && <HatchForm onSuccess={() => { setShowForm(false); fetchEntries(); }} />}
+      {showForm && <HatchForm filters={filters} onSuccess={() => { setShowForm(false); fetchEntries(); }} />}
 
       {/* Filters */}
-      <form onSubmit={handleSearch} className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <form onSubmit={handleSearch} className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <input
           value={waterBody}
           onChange={(e) => setWaterBody(e.target.value)}
           placeholder="Water body..."
           list="waterBodies"
-          className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         />
         <datalist id="waterBodies">
           {filters.waterBodies.map((w) => <option key={w} value={w} />)}
@@ -103,7 +107,7 @@ export default function HatchPage() {
         <select
           value={region}
           onChange={(e) => setRegion(e.target.value)}
-          className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         >
           <option value="">All Regions</option>
           {filters.regions.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -112,27 +116,35 @@ export default function HatchPage() {
         <select
           value={month}
           onChange={(e) => setMonth(Number(e.target.value))}
-          className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         >
           {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
         </select>
 
-        <div className="flex gap-2">
-          <select
-            value={species}
-            onChange={(e) => setSpecies(e.target.value)}
-            className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-          >
-            <option value="">All Species</option>
-            {filters.species.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <button
-            type="submit"
-            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
-            Search
-          </button>
-        </div>
+        <select
+          value={species}
+          onChange={(e) => setSpecies(e.target.value)}
+          className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+        >
+          <option value="">All Insects</option>
+          {filters.species.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        <select
+          value={targetFish}
+          onChange={(e) => setTargetFish(e.target.value)}
+          className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+        >
+          <option value="">All Fish</option>
+          {filters.targetFish.map((f) => <option key={f} value={f}>{f}</option>)}
+        </select>
+
+        <button
+          type="submit"
+          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+        >
+          Search
+        </button>
       </form>
 
       {/* Results */}
@@ -152,10 +164,11 @@ export default function HatchPage() {
               <tr>
                 <th className="px-3 py-2">Water Body</th>
                 <th className="px-3 py-2">Month</th>
-                <th className="px-3 py-2">Species</th>
+                <th className="px-3 py-2">Insect</th>
                 <th className="px-3 py-2">Hatch</th>
                 <th className="px-3 py-2">Type</th>
                 <th className="px-3 py-2">Pattern</th>
+                <th className="px-3 py-2">Fish</th>
                 <th className="px-3 py-2">Time</th>
               </tr>
             </thead>
@@ -172,13 +185,14 @@ export default function HatchPage() {
                   <td className="px-3 py-2.5 capitalize text-gray-500 dark:text-gray-400">{entry.insectType}</td>
                   <td className="px-3 py-2.5">
                     {entry.flyPattern ? (
-                      <Link href={`/patterns/${entry.flyPattern.slug}`} className="text-brand-600 hover:text-brand-700">
+                      <Link href={`/patterns/${entry.flyPattern.slug}`} className="text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
                         {entry.flyPattern.name}
                       </Link>
                     ) : (
                       <span className="text-gray-600 dark:text-gray-400">{entry.patternName}</span>
                     )}
                   </td>
+                  <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400">{entry.targetFish ?? "—"}</td>
                   <td className="px-3 py-2.5 text-gray-500 dark:text-gray-400">{entry.timeOfDay ?? "—"}</td>
                 </tr>
               ))}
@@ -190,7 +204,7 @@ export default function HatchPage() {
   );
 }
 
-function HatchForm({ onSuccess }: { onSuccess: () => void }) {
+function HatchForm({ filters, onSuccess }: { filters: Filters; onSuccess: () => void }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -214,6 +228,7 @@ function HatchForm({ onSuccess }: { onSuccess: () => void }) {
         insectType: fd.get("insectType"),
         patternName: fd.get("patternName"),
         timeOfDay: fd.get("timeOfDay") || null,
+        targetFish: fd.get("targetFish") || null,
         notes: fd.get("notes") || null,
       }),
     });
@@ -235,15 +250,15 @@ function HatchForm({ onSuccess }: { onSuccess: () => void }) {
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <input name="waterBody" required placeholder="Water body *" className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm" />
-        <input name="region" required placeholder="Region *" className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm" />
-        <input name="state" placeholder="State (optional)" className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm" />
-        <select name="month" required defaultValue={new Date().getMonth() + 1} className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm">
+        <input name="waterBody" required placeholder="Water body *" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm" />
+        <input name="region" required placeholder="Region *" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm" />
+        <input name="state" placeholder="State (optional)" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm" />
+        <select name="month" required defaultValue={new Date().getMonth() + 1} className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm">
           {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
         </select>
-        <input name="species" required placeholder="Species *" className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm" />
-        <input name="insectName" required placeholder="Hatch name *" className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm" />
-        <select name="insectType" required className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm">
+        <input name="species" required placeholder="Insect species *" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm" />
+        <input name="insectName" required placeholder="Hatch name *" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm" />
+        <select name="insectType" required className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm">
           <option value="">Insect type *</option>
           <option value="mayfly">Mayfly</option>
           <option value="caddis">Caddis</option>
@@ -252,8 +267,30 @@ function HatchForm({ onSuccess }: { onSuccess: () => void }) {
           <option value="terrestrial">Terrestrial</option>
           <option value="other">Other</option>
         </select>
-        <input name="patternName" required placeholder="Suggested pattern *" className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm" />
-        <select name="timeOfDay" className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm">
+        <input name="patternName" required placeholder="Suggested pattern *" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm" />
+        <select name="targetFish" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm">
+          <option value="">Target fish</option>
+          <option value="Rainbow Trout">Rainbow Trout</option>
+          <option value="Brown Trout">Brown Trout</option>
+          <option value="Brook Trout">Brook Trout</option>
+          <option value="Cutthroat Trout">Cutthroat Trout</option>
+          <option value="Steelhead">Steelhead</option>
+          <option value="Salmon">Salmon</option>
+          <option value="Smallmouth Bass">Smallmouth Bass</option>
+          <option value="Largemouth Bass">Largemouth Bass</option>
+          <option value="Panfish">Panfish</option>
+          <option value="Carp">Carp</option>
+          <option value="Bonefish">Bonefish</option>
+          <option value="Tarpon">Tarpon</option>
+          <option value="Redfish">Redfish</option>
+          <option value="Pike">Pike</option>
+          <option value="Musky">Musky</option>
+          {filters.targetFish
+            .filter((f) => !["Rainbow Trout","Brown Trout","Brook Trout","Cutthroat Trout","Steelhead","Salmon","Smallmouth Bass","Largemouth Bass","Panfish","Carp","Bonefish","Tarpon","Redfish","Pike","Musky"].includes(f))
+            .map((f) => <option key={f} value={f}>{f}</option>)
+          }
+        </select>
+        <select name="timeOfDay" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm">
           <option value="">Time of day</option>
           <option value="morning">Morning</option>
           <option value="midday">Midday</option>
@@ -262,7 +299,7 @@ function HatchForm({ onSuccess }: { onSuccess: () => void }) {
           <option value="all day">All Day</option>
         </select>
       </div>
-      <textarea name="notes" placeholder="Notes (optional)" rows={2} className="mt-3 w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm" />
+      <textarea name="notes" placeholder="Notes (optional)" rows={2} className="mt-3 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm" />
       <button type="submit" disabled={loading} className="mt-3 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
         {loading ? "Submitting..." : "Submit Report"}
       </button>

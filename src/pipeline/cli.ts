@@ -685,6 +685,7 @@ insectType must be: mayfly, caddis, stonefly, midge, terrestrial, other`);
     insectType: string;
     patternName: string;
     timeOfDay?: string;
+    targetFish?: string;
     notes?: string;
   }>;
 
@@ -751,6 +752,7 @@ insectType must be: mayfly, caddis, stonefly, midge, terrestrial, other`);
         insectType: entry.insectType,
         patternName: entry.patternName,
         timeOfDay: entry.timeOfDay ?? null,
+        targetFish: entry.targetFish ?? null,
         notes: entry.notes ?? null,
       },
     });

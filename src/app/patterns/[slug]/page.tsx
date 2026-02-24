@@ -15,7 +15,6 @@ import { MaterialList } from "@/components/MaterialList";
 import { VariationSection } from "@/components/VariationSection";
 import { ResourceList } from "@/components/ResourceList";
 import { FeedbackForm } from "@/components/FeedbackForm";
-import { AffiliateDisclosure } from "@/components/AffiliateDisclosure";
 import { PatternActions } from "@/components/PatternActions";
 import { StarRating } from "@/components/StarRating";
 import { CommentSection } from "@/components/CommentSection";
@@ -86,14 +85,6 @@ export default async function PatternPage({ params }: PatternPageProps) {
   const difficultyColor =
     DIFFICULTY_BADGE_COLORS[pattern.difficulty] ?? "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
 
-  const hasAffiliateLinks = pattern.materials.some(
-    (pm) =>
-      pm.material.affiliateLinks.length > 0 ||
-      pm.material.substitutionsFrom.some(
-        (sub) => sub.substituteMaterial.affiliateLinks.length > 0
-      )
-  );
-
   return (
     <>
       <JsonLd pattern={pattern} />
@@ -156,13 +147,6 @@ export default async function PatternPage({ params }: PatternPageProps) {
         {pattern.images.length > 0 && (
           <div className="mb-10">
             <PhotoGallery flyPatternId={pattern.id} images={pattern.images} />
-          </div>
-        )}
-
-        {/* Affiliate disclosure */}
-        {hasAffiliateLinks && (
-          <div className="mb-8">
-            <AffiliateDisclosure />
           </div>
         )}
 

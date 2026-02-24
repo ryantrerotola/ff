@@ -7,12 +7,14 @@ export async function GET(request: NextRequest) {
   const region = request.nextUrl.searchParams.get("region");
   const month = request.nextUrl.searchParams.get("month");
   const species = request.nextUrl.searchParams.get("species");
+  const targetFish = request.nextUrl.searchParams.get("targetFish");
 
   const where: Record<string, unknown> = {};
   if (waterBody) where.waterBody = { contains: waterBody, mode: "insensitive" };
   if (region) where.region = { contains: region, mode: "insensitive" };
   if (month) where.month = Number(month);
   if (species) where.species = { contains: species, mode: "insensitive" };
+  if (targetFish) where.targetFish = { contains: targetFish, mode: "insensitive" };
 
   const entries = await withRetry(() =>
     prisma.hatchEntry.findMany({
@@ -27,11 +29,12 @@ export async function GET(request: NextRequest) {
   );
 
   // Get distinct values for filter dropdowns
-  const [regions, waterBodies, speciesList] = await withRetry(() =>
+  const [regions, waterBodies, speciesList, targetFishList] = await withRetry(() =>
     Promise.all([
       prisma.hatchEntry.findMany({ select: { region: true }, distinct: ["region"], orderBy: { region: "asc" } }),
       prisma.hatchEntry.findMany({ select: { waterBody: true }, distinct: ["waterBody"], orderBy: { waterBody: "asc" } }),
       prisma.hatchEntry.findMany({ select: { species: true }, distinct: ["species"], orderBy: { species: "asc" } }),
+      prisma.hatchEntry.findMany({ where: { targetFish: { not: null } }, select: { targetFish: true }, distinct: ["targetFish"], orderBy: { targetFish: "asc" } }),
     ]),
   );
 
@@ -41,6 +44,7 @@ export async function GET(request: NextRequest) {
       regions: regions.map((r) => r.region),
       waterBodies: waterBodies.map((w) => w.waterBody),
       species: speciesList.map((s) => s.species),
+      targetFish: targetFishList.map((f) => f.targetFish).filter(Boolean),
     },
   });
 }
@@ -52,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { waterBody, region, state, month, species, insectName, insectType, patternName, flyPatternId, timeOfDay, notes } = body;
+  const { waterBody, region, state, month, species, insectName, insectType, patternName, flyPatternId, timeOfDay, targetFish, notes } = body;
 
   if (!waterBody || !region || !month || !species || !insectName || !insectType || !patternName) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -74,6 +78,7 @@ export async function POST(request: Request) {
       patternName,
       flyPatternId: flyPatternId || null,
       timeOfDay: timeOfDay || null,
+      targetFish: targetFish || null,
       notes: notes || null,
       submittedById: user.id,
     },
