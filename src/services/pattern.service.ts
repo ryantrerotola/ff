@@ -143,26 +143,23 @@ export async function getPatternBySlug(
 ): Promise<FlyPatternDetail | null> {
   if (!isDatabaseConfigured()) {
     console.error(
-      `[PatternService] DATABASE_URL is not configured; cannot load pattern \"${slug}\".`,
+      `[PatternService] DATABASE_URL is not configured; cannot load pattern "${slug}".`,
     );
     return null;
   }
 
-  let pattern: FlyPatternDetail | null = null;
-
-  try {
-    pattern = await withRetry(async () =>
-      (await prisma.flyPattern.findUnique({
+  // Use more aggressive retries (3 attempts, 1s base) for Vercel/Supabase cold starts.
+  // If ALL retries fail, let the error propagate so Next.js shows an error page
+  // (which can be retried) instead of caching a false 404.
+  const pattern = (await withRetry(
+    async () =>
+      prisma.flyPattern.findUnique({
         where: { slug },
         include: patternDetailInclude,
-      })) as FlyPatternDetail | null,
-    );
-  } catch (error) {
-    console.error(
-      `[PatternService] Failed to load pattern "${slug}" after retries.`,
-      error,
-    );
-  }
+      }),
+    3,
+    1000,
+  )) as FlyPatternDetail | null;
 
   return pattern;
 }
