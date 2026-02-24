@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { prisma, withRetry } from "@/lib/prisma";
 import {
   CATEGORY_LABELS,
   DIFFICULTY_LABELS,
@@ -24,7 +24,10 @@ export async function SimilarPatterns({
   difficulty,
 }: SimilarPatternsProps) {
   // Fetch patterns in the same category, excluding the current one
-  const patterns = await prisma.flyPattern.findMany({
+  type PatternRow = { id: string; name: string; slug: string; category: string; difficulty: string; waterType: string; description: string; _count: { materials: number; variations: number } };
+  let patterns: PatternRow[] = [];
+  try {
+    patterns = await withRetry(() => prisma.flyPattern.findMany({
     where: {
       category: category as never,
       id: { not: flyPatternId },
@@ -46,7 +49,10 @@ export async function SimilarPatterns({
     },
     orderBy: { name: "asc" },
     take: 20,
-  });
+  }));
+  } catch {
+    // Don't break the page if similar patterns fail to load
+  }
 
   // Sort: same difficulty first, then the rest
   const sorted = [...patterns].sort((a, b) => {

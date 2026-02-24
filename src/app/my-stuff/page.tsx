@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, withRetry } from "@/lib/prisma";
 import { CATEGORY_LABELS, DIFFICULTY_LABELS } from "@/lib/constants";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "My Stuff",
@@ -22,7 +24,7 @@ export default async function MyStuffPage() {
     recentComments,
     likeCount,
     unreadMessages,
-  ] = await Promise.all([
+  ] = await withRetry(() => Promise.all([
     prisma.savedPattern.findMany({
       where: { userId: user.id },
       include: {
@@ -54,7 +56,7 @@ export default async function MyStuffPage() {
     prisma.directMessage.count({
       where: { receiverId: user.id, read: false },
     }),
-  ]);
+  ]));
 
   const STATUS_BADGE: Record<string, string> = {
     pending: "bg-yellow-100 text-yellow-800",
