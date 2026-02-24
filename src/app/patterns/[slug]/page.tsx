@@ -1,9 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import {
-  getPatternBySlug,
-  getAllPatternSlugs,
-} from "@/services/pattern.service";
+import { getPatternBySlug } from "@/services/pattern.service";
 import {
   CATEGORY_LABELS,
   DIFFICULTY_LABELS,
@@ -30,17 +27,7 @@ interface PatternPageProps {
   params: Promise<{ slug: string }>;
 }
 
-export const dynamicParams = true;
-
-export async function generateStaticParams() {
-  try {
-    const slugs = await getAllPatternSlugs();
-    return slugs.map((slug) => ({ slug }));
-  } catch {
-    // Database not available at build time; pages will be generated on demand
-    return [];
-  }
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
