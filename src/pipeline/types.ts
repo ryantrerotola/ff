@@ -47,6 +47,13 @@ export interface ExtractedSubstitution {
   notes: string;
 }
 
+export interface ExtractedStep {
+  position: number;
+  title: string;
+  instruction: string;
+  tip: string | null;
+}
+
 export interface ExtractedPattern {
   patternName: string;
   alternateNames: string[];
@@ -58,6 +65,7 @@ export interface ExtractedPattern {
   materials: ExtractedMaterial[];
   variations: ExtractedVariation[];
   substitutions: ExtractedSubstitution[];
+  tyingSteps: ExtractedStep[];
 }
 
 // ─── Normalization Types ────────────────────────────────────────────────────
@@ -99,6 +107,7 @@ export interface ConsensusPattern {
   materials: ConsensusMaterial[];
   variations: ExtractedVariation[];
   substitutions: ExtractedSubstitution[];
+  tyingSteps: ExtractedStep[];
   overallConfidence: number;
   sourceCount: number;
 }

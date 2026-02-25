@@ -58,6 +58,9 @@ export async function ingestConsensusPattern(
     await tx.variation.deleteMany({
       where: { flyPatternId: flyPattern.id },
     });
+    await tx.tyingStep.deleteMany({
+      where: { flyPatternId: flyPattern.id },
+    });
     // Keep existing resources; add new ones only
     // Keep existing feedback
 
@@ -181,9 +184,23 @@ export async function ingestConsensusPattern(
       }
     }
 
+    // Step 7: Create tying steps
+    if (consensus.tyingSteps && consensus.tyingSteps.length > 0) {
+      await tx.tyingStep.createMany({
+        data: consensus.tyingSteps.map((step) => ({
+          flyPatternId: flyPattern.id,
+          position: step.position,
+          title: step.title,
+          instruction: step.instruction,
+          tip: step.tip,
+        })),
+      });
+    }
+
     log.success("Pattern ingested", {
       pattern: consensus.patternName,
       id: flyPattern.id,
+      tyingSteps: String(consensus.tyingSteps?.length ?? 0),
     });
 
     return flyPattern.id;

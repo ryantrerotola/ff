@@ -41,6 +41,8 @@
     "pipeline:images": "tsx src/pipeline/cli.ts images",
     "pipeline:run": "tsx src/pipeline/cli.ts run",
     "validate-db": "tsx scripts/validate-db.ts",
+    "check-incomplete": "tsx scripts/check-incomplete-patterns.ts",
+    "pipeline:enrich": "tsx src/pipeline/cli.ts enrich",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

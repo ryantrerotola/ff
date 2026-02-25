@@ -21,6 +21,7 @@ function makePattern(overrides: Partial<ExtractedPattern> = {}): ExtractedPatter
     ],
     variations: [{ name: "Parachute Adams", description: "Uses a parachute hackle", materialChanges: [] }],
     substitutions: [{ originalMaterial: "Grizzly hackle", substituteMaterial: "Dun hackle", substitutionType: "alternative", notes: "Works when grizzly unavailable" }],
+    tyingSteps: [],
     ...overrides,
   };
 }

@@ -20,6 +20,7 @@ function makeExtraction(overrides: Partial<ExtractedPattern> = {}): ExtractedPat
     ],
     variations: [],
     substitutions: [],
+    tyingSteps: [],
     ...overrides,
   };
 }

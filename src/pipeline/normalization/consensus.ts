@@ -3,6 +3,7 @@ import { combinedSimilarity } from "./matcher";
 import { createLogger } from "../utils/logger";
 import type {
   ExtractedPattern,
+  ExtractedStep,
   ExtractedSubstitution,
   ExtractedVariation,
   ConsensusPattern,
@@ -77,6 +78,9 @@ export function buildConsensus(
   // Substitutions: merge unique substitutions
   const substitutions = mergeSubstitutions(extractions);
 
+  // Tying steps: pick the best set from the source with the most detailed steps
+  const tyingSteps = pickBestTyingSteps(extractions);
+
   // Overall confidence
   const overallConfidence = calculateOverallConfidence(
     category,
@@ -97,6 +101,7 @@ export function buildConsensus(
     materials,
     variations,
     substitutions,
+    tyingSteps,
     overallConfidence,
     sourceCount,
   };
@@ -338,6 +343,43 @@ function mergeSubstitutions(
   }
 
   return [...seen.values()];
+}
+
+/**
+ * Pick the best tying steps from multiple sources.
+ *
+ * Strategy: step-by-step merging across sources is unreliable since
+ * different sources describe steps differently. Instead, pick the source
+ * with the most detailed steps (highest total instruction text length).
+ */
+function pickBestTyingSteps(
+  extractions: ExtractedPattern[]
+): ExtractedStep[] {
+  let bestSteps: ExtractedStep[] = [];
+  let bestScore = 0;
+
+  for (const ext of extractions) {
+    const steps = ext.tyingSteps ?? [];
+    if (steps.length === 0) continue;
+
+    // Score by: number of steps * average instruction detail
+    const totalLength = steps.reduce(
+      (sum, s) => sum + (s.instruction?.length ?? 0),
+      0
+    );
+    const score = steps.length * 10 + totalLength;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestSteps = steps;
+    }
+  }
+
+  // Re-number positions sequentially
+  return bestSteps.map((step, i) => ({
+    ...step,
+    position: i + 1,
+  }));
 }
 
 /**
