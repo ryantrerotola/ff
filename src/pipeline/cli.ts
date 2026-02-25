@@ -1288,14 +1288,38 @@ async function cmdEnrichTechniques(args: string[]) {
   const slugFilters = args.filter((a) => !a.startsWith("--"));
 
   // Find techniques that need enrichment (missing steps = generic pipeline-created)
-  const allTechniques = await prisma.tyingTechnique.findMany({
-    where: slugFilters.length > 0 ? { slug: { in: slugFilters } } : undefined,
-    include: {
-      steps: true,
-      videos: true,
-    },
-    orderBy: { name: "asc" },
-  });
+  // Try including steps — if the migration hasn't been applied yet, fall back
+  let allTechniques: {
+    id: string;
+    name: string;
+    slug: string;
+    category: string;
+    difficulty: string;
+    description: string;
+    keyPoints: string[];
+    steps: { id: string }[];
+    videos: { id: string }[];
+  }[];
+
+  try {
+    allTechniques = await prisma.tyingTechnique.findMany({
+      where: slugFilters.length > 0 ? { slug: { in: slugFilters } } : undefined,
+      include: {
+        steps: { select: { id: true } },
+        videos: { select: { id: true } },
+      },
+      orderBy: { name: "asc" },
+    });
+  } catch {
+    // steps relation may not exist if migration not applied — query without it
+    log.warn("TechniqueStep table may not exist yet. Run: npx prisma migrate deploy && npx prisma generate");
+    const basic = await prisma.tyingTechnique.findMany({
+      where: slugFilters.length > 0 ? { slug: { in: slugFilters } } : undefined,
+      include: { videos: { select: { id: true } } },
+      orderBy: { name: "asc" },
+    });
+    allTechniques = basic.map((t) => ({ ...t, steps: [] }));
+  }
 
   // Filter to techniques that are incomplete
   const incomplete = allTechniques.filter((t) => {
@@ -1439,20 +1463,24 @@ The content should be appropriate for the ${technique.difficulty} difficulty lev
         });
 
         // Replace steps (delete old + create new)
-        await tx.techniqueStep.deleteMany({
-          where: { techniqueId: technique.id },
-        });
-
-        if (data.steps.length > 0) {
-          await tx.techniqueStep.createMany({
-            data: data.steps.map((s, i) => ({
-              techniqueId: technique.id,
-              position: s.position ?? i + 1,
-              title: s.title.slice(0, 200),
-              instruction: s.instruction,
-              tip: s.tip ?? null,
-            })),
+        try {
+          await tx.techniqueStep.deleteMany({
+            where: { techniqueId: technique.id },
           });
+
+          if (data.steps.length > 0) {
+            await tx.techniqueStep.createMany({
+              data: data.steps.map((s, i) => ({
+                techniqueId: technique.id,
+                position: s.position ?? i + 1,
+                title: s.title.slice(0, 200),
+                instruction: s.instruction,
+                tip: s.tip ?? null,
+              })),
+            });
+          }
+        } catch {
+          log.warn(`Could not write steps for ${technique.name} — run 'npx prisma migrate deploy' to create the technique_steps table`);
         }
       });
 
