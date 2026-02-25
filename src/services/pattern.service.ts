@@ -21,6 +21,11 @@ const patternListSelect = {
       variations: true,
     },
   },
+  images: {
+    where: { isPrimary: true },
+    select: { url: true, caption: true },
+    take: 1,
+  },
 } satisfies Prisma.FlyPatternSelect;
 
 const patternDetailInclude = {
@@ -110,7 +115,7 @@ export async function getPatterns(
   let total = 0;
 
   try {
-    [data, total] = await withRetry(() =>
+    const [rawData, count] = await withRetry(() =>
       Promise.all([
         prisma.flyPattern.findMany({
           where,
@@ -122,6 +127,11 @@ export async function getPatterns(
         prisma.flyPattern.count({ where }),
       ]),
     );
+    total = count;
+    data = rawData.map(({ images, ...rest }) => ({
+      ...rest,
+      primaryImage: images[0] ?? null,
+    }));
   } catch (error) {
     console.error(
       "[PatternService] Failed to load patterns after retries.",

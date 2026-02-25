@@ -79,6 +79,7 @@ export interface FlyPatternListItem
     materials: number;
     variations: number;
   };
+  primaryImage?: { url: string; caption: string | null } | null;
 }
 
 // ─── API query params ───────────────────────────────────────────────────────

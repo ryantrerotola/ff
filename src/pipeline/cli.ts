@@ -768,6 +768,386 @@ insectType must be: mayfly, caddis, stonefly, midge, terrestrial, other`);
   log.info(`Regions: ${regions.join(", ")}`);
 }
 
+// ─── COMMAND: add-water-bodies ───────────────────────────────────────────
+
+async function cmdAddWaterBodies(args: string[]) {
+  if (args.length === 0) {
+    console.error(`Usage: pipeline add-water-bodies <json-file>
+       pipeline add-water-bodies --inline '<json-array>'
+
+JSON format (array of objects):
+  [{
+    "name": "South Platte River",
+    "region": "Rocky Mountains",
+    "state": "CO",
+    "waterType": "river",
+    "latitude": 39.2,
+    "longitude": -105.2,
+    "description": "Optional description"
+  }]
+
+waterType options: river, creek, lake, reservoir, pond, spring_creek, tailwater, saltwater_flat, estuary, ocean`);
+    process.exit(1);
+  }
+
+  let rawJson: string;
+  if (args[0] === "--inline") {
+    rawJson = args.slice(1).join(" ");
+  } else {
+    const fs = await import("fs");
+    const filePath = args[0]!;
+    if (!fs.existsSync(filePath)) {
+      log.error(`File not found: ${filePath}`);
+      process.exit(1);
+    }
+    rawJson = fs.readFileSync(filePath, "utf-8");
+  }
+
+  let entries: Array<{
+    name: string;
+    region: string;
+    state?: string;
+    waterType?: string;
+    latitude?: number;
+    longitude?: number;
+    description?: string;
+  }>;
+
+  try {
+    entries = JSON.parse(rawJson);
+    if (!Array.isArray(entries)) {
+      log.error("JSON must be an array of water body entries");
+      process.exit(1);
+    }
+  } catch (e) {
+    log.error(`Invalid JSON: ${String(e)}`);
+    process.exit(1);
+  }
+
+  // Validate
+  const errors: string[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i]!;
+    if (!e.name) errors.push(`Entry ${i}: missing name`);
+    if (!e.region) errors.push(`Entry ${i}: missing region`);
+  }
+
+  if (errors.length > 0) {
+    for (const err of errors) log.error(err);
+    process.exit(1);
+  }
+
+  log.info(`Adding ${entries.length} water bodies`);
+
+  let added = 0;
+  let skipped = 0;
+
+  for (const entry of entries) {
+    const waterSlug = slugify(`${entry.name} ${entry.state ?? entry.region}`);
+
+    const existing = await prisma.waterBody.findUnique({
+      where: { slug: waterSlug },
+    });
+
+    if (existing) {
+      log.info(`Skipped (already exists): ${entry.name}`);
+      skipped++;
+      continue;
+    }
+
+    await prisma.waterBody.create({
+      data: {
+        name: entry.name,
+        slug: waterSlug,
+        region: entry.region,
+        state: entry.state ?? null,
+        waterType: entry.waterType ?? "river",
+        latitude: entry.latitude ?? null,
+        longitude: entry.longitude ?? null,
+        description: entry.description ?? null,
+      },
+    });
+    added++;
+  }
+
+  log.success(`Done — ${added} water bodies added, ${skipped} skipped`);
+
+  // Tip: auto-populate hatch entries
+  if (added > 0) {
+    log.info("Tip: Run 'npm run pipeline enrich-hatches' to auto-populate hatch data for new water bodies");
+  }
+}
+
+// ─── COMMAND: enrich-hatches ────────────────────────────────────────────
+
+async function cmdEnrichHatches(args: string[]) {
+  const regionFilter = args[0] ?? undefined;
+
+  // Fetch all water bodies (optionally filtered by region)
+  const where: Record<string, unknown> = {};
+  if (regionFilter) {
+    where.region = { contains: regionFilter, mode: "insensitive" };
+  }
+
+  const waterBodies = await prisma.waterBody.findMany({
+    where,
+    orderBy: [{ region: "asc" }, { name: "asc" }],
+  });
+
+  if (waterBodies.length === 0) {
+    log.info("No water bodies found. Add water bodies first with 'add-water-bodies'");
+    return;
+  }
+
+  log.info(`Enriching hatch data for ${waterBodies.length} water bodies`);
+
+  // Standard hatch data by region — this is the knowledge base for auto-generating hatches
+  const REGIONAL_HATCHES: Record<string, Array<{
+    month: number;
+    species: string;
+    insectName: string;
+    insectType: string;
+    patternName: string;
+    timeOfDay: string;
+    notes: string;
+    targetFish?: string;
+  }>> = {
+    "Rocky Mountains": [
+      { month: 1, species: "Chironomidae", insectName: "Midge", insectType: "midge", patternName: "Zebra Midge", timeOfDay: "midday", notes: "Winter midge fishing is often the only game in town. Fish small (size 20-24) near the bottom.", targetFish: "Rainbow Trout" },
+      { month: 2, species: "Chironomidae", insectName: "Midge", insectType: "midge", patternName: "Top Secret Midge", timeOfDay: "midday", notes: "Continue with midge patterns. Look for rising fish on warmer afternoons.", targetFish: "Brown Trout" },
+      { month: 3, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Pheasant Tail Nymph", timeOfDay: "afternoon", notes: "Spring BWO hatches begin on overcast days. Nymph before the hatch, switch to dries when fish start rising.", targetFish: "Rainbow Trout" },
+      { month: 4, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Blue-Winged Olive", timeOfDay: "afternoon", notes: "Peak spring BWO activity. Cloudy, drizzly days produce the best hatches.", targetFish: "Brown Trout" },
+      { month: 5, species: "Brachycentrus", insectName: "Mother's Day Caddis", insectType: "caddis", patternName: "Elk Hair Caddis", timeOfDay: "afternoon", notes: "The famous Mother's Day Caddis hatch brings explosive dry fly action. Fish the riffles and runs.", targetFish: "Rainbow Trout" },
+      { month: 6, species: "Drunella grandis", insectName: "Green Drake", insectType: "mayfly", patternName: "Green Drake", timeOfDay: "evening", notes: "The Green Drake hatch is one of the most anticipated events of the year. Big flies, big fish.", targetFish: "Brown Trout" },
+      { month: 6, species: "Pteronarcys californica", insectName: "Salmonfly", insectType: "stonefly", patternName: "Stimulator", timeOfDay: "afternoon", notes: "Salmonfly hatches move upstream as water temperatures warm. Follow the hatch front for best action.", targetFish: "Rainbow Trout" },
+      { month: 7, species: "Ephemerella", insectName: "Pale Morning Dun", insectType: "mayfly", patternName: "Pale Morning Dun", timeOfDay: "morning", notes: "PMD hatches provide consistent morning dry fly fishing throughout July.", targetFish: "Rainbow Trout" },
+      { month: 7, species: "Tricorythodes", insectName: "Trico", insectType: "mayfly", patternName: "Trico Spinner", timeOfDay: "morning", notes: "Early morning Trico spinner falls can produce incredible technical fishing. Tiny flies, size 20-24.", targetFish: "Brown Trout" },
+      { month: 8, species: "Tricorythodes", insectName: "Trico", insectType: "mayfly", patternName: "Trico Spinner", timeOfDay: "morning", notes: "Peak Trico season continues. Fish the spinner fall with a downstream presentation.", targetFish: "Brown Trout" },
+      { month: 8, species: "Orthoptera", insectName: "Grasshopper", insectType: "terrestrial", patternName: "Dave's Hopper", timeOfDay: "afternoon", notes: "Terrestrial season is in full swing. Slap hoppers against grassy banks for explosive strikes.", targetFish: "Rainbow Trout" },
+      { month: 9, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Blue-Winged Olive", timeOfDay: "afternoon", notes: "Fall BWO hatches begin again. Often the best dry fly fishing of the year on overcast days.", targetFish: "Brown Trout" },
+      { month: 10, species: "Dicosmoecus", insectName: "October Caddis", insectType: "caddis", patternName: "Stimulator", timeOfDay: "evening", notes: "Large October Caddis bring big fish to the surface. Fish size 6-10 orange stimulators.", targetFish: "Brown Trout" },
+      { month: 11, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Pheasant Tail Nymph", timeOfDay: "afternoon", notes: "Late season BWOs. Fishing pressure drops but hatches continue on warmer afternoons.", targetFish: "Brown Trout" },
+      { month: 12, species: "Chironomidae", insectName: "Midge", insectType: "midge", patternName: "Zebra Midge", timeOfDay: "midday", notes: "Midge season returns. Focus on tailwaters which stay fishable through winter.", targetFish: "Rainbow Trout" },
+    ],
+    "Northeast": [
+      { month: 3, species: "Chironomidae", insectName: "Midge", insectType: "midge", patternName: "Griffith's Gnat", timeOfDay: "midday", notes: "Early season midges signal the start of trout fishing. Focus on slower water.", targetFish: "Brown Trout" },
+      { month: 4, species: "Ephemerella subvaria", insectName: "Hendrickson", insectType: "mayfly", patternName: "Hendrickson", timeOfDay: "afternoon", notes: "The Hendrickson hatch is the first major mayfly event. Look for size 12-14 duns in the afternoon.", targetFish: "Brown Trout" },
+      { month: 5, species: "Stenonema vicarium", insectName: "March Brown", insectType: "mayfly", patternName: "March Brown", timeOfDay: "afternoon", notes: "Despite the name, March Browns hatch in May in the northeast. Big flies, size 10-12.", targetFish: "Brown Trout" },
+      { month: 5, species: "Brachycentrus", insectName: "Grannom Caddis", insectType: "caddis", patternName: "Elk Hair Caddis", timeOfDay: "afternoon", notes: "Thick caddis hatches provide fast fishing. Try a soft hackle swung on the downstream drift.", targetFish: "Rainbow Trout" },
+      { month: 6, species: "Ephemera guttulata", insectName: "Green Drake", insectType: "mayfly", patternName: "Green Drake", timeOfDay: "evening", notes: "The legendary eastern Green Drake hatch. Fish twilight for the biggest browns.", targetFish: "Brown Trout" },
+      { month: 6, species: "Stenacron", insectName: "Light Cahill", insectType: "mayfly", patternName: "Light Cahill", timeOfDay: "evening", notes: "Evening Light Cahill hatches provide reliable dry fly fishing through June.", targetFish: "Brown Trout" },
+      { month: 7, species: "Isonychia", insectName: "Isonychia (Slate Drake)", insectType: "mayfly", patternName: "Comparadun", timeOfDay: "evening", notes: "Slate Drakes are big, fast-swimming mayflies that produce exciting surface takes.", targetFish: "Brown Trout" },
+      { month: 8, species: "Tricorythodes", insectName: "Trico", insectType: "mayfly", patternName: "Trico Spinner", timeOfDay: "morning", notes: "Trico spinner falls create blanket rises. Technical fishing with tiny flies.", targetFish: "Brown Trout" },
+      { month: 9, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Blue-Winged Olive", timeOfDay: "afternoon", notes: "Fall BWO hatches are prolific in the northeast. Fish on overcast days.", targetFish: "Brown Trout" },
+      { month: 10, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Pheasant Tail Nymph", timeOfDay: "afternoon", notes: "Late fall BWO hatches. Some of the best dry fly fishing of the year.", targetFish: "Brown Trout" },
+    ],
+    "Pacific Northwest": [
+      { month: 3, species: "Skwala", insectName: "Skwala Stonefly", insectType: "stonefly", patternName: "Stimulator", timeOfDay: "midday", notes: "The Skwala hatch kicks off the season. Fish olive stonefly patterns size 8-10.", targetFish: "Rainbow Trout" },
+      { month: 5, species: "Drunella grandis", insectName: "Green Drake", insectType: "mayfly", patternName: "Green Drake", timeOfDay: "afternoon", notes: "Western Green Drake hatches can be phenomenal. Size 10-12 in green and olive.", targetFish: "Rainbow Trout" },
+      { month: 6, species: "Pteronarcys californica", insectName: "Salmonfly", insectType: "stonefly", patternName: "Stimulator", timeOfDay: "afternoon", notes: "Salmonfly hatches on the Deschutes and other rivers. Size 4-8 patterns fished tight to banks.", targetFish: "Rainbow Trout" },
+      { month: 7, species: "Ephemerella", insectName: "Pale Morning Dun", insectType: "mayfly", patternName: "Pale Morning Dun", timeOfDay: "morning", notes: "Prolific PMD hatches across PNW rivers. Standard sizes 14-18.", targetFish: "Rainbow Trout" },
+      { month: 10, species: "Dicosmoecus", insectName: "October Caddis", insectType: "caddis", patternName: "Stimulator", timeOfDay: "evening", notes: "October Caddis hatches are a highlight of fall fishing. Big orange flies, aggressive fish.", targetFish: "Steelhead" },
+    ],
+    "Mid-South": [
+      { month: 1, species: "Chironomidae", insectName: "Midge", insectType: "midge", patternName: "Zebra Midge", timeOfDay: "midday", notes: "Year-round midge fishing on tailwaters like the White River and South Holston.", targetFish: "Rainbow Trout" },
+      { month: 3, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Blue-Winged Olive", timeOfDay: "afternoon", notes: "Spring BWO hatches on southern tailwaters. Afternoon hatches are consistent.", targetFish: "Brown Trout" },
+      { month: 5, species: "Hydropsyche", insectName: "Spotted Sedge", insectType: "caddis", patternName: "Elk Hair Caddis", timeOfDay: "evening", notes: "Caddis hatches provide excellent dry fly fishing on warmer evenings.", targetFish: "Rainbow Trout" },
+      { month: 6, species: "Ephemerella", insectName: "Sulphur", insectType: "mayfly", patternName: "Sulphur Dun", timeOfDay: "evening", notes: "Sulphur hatches bring fish to the surface reliably. Fish size 16-18 in yellow.", targetFish: "Brown Trout" },
+    ],
+    "Saltwater": [
+      { month: 1, species: "Menippe mercenaria", insectName: "Crab", insectType: "other", patternName: "Permit Crab", timeOfDay: "all day", notes: "Winter permit fishing in the Keys. Sight-fish over turtle grass flats.", targetFish: "Permit" },
+      { month: 3, species: "Penaeus", insectName: "Shrimp", insectType: "other", patternName: "Crazy Charlie", timeOfDay: "morning", notes: "Spring bonefish season heats up. Fish shrimp patterns on rising tides over white sand flats.", targetFish: "Bonefish" },
+      { month: 5, species: "Engraulidae", insectName: "Baitfish", insectType: "other", patternName: "Lefty's Deceiver", timeOfDay: "morning", notes: "Tarpon season begins. Fish large baitfish patterns along migration routes.", targetFish: "Tarpon" },
+      { month: 7, species: "Engraulidae", insectName: "Baitfish", insectType: "other", patternName: "Clouser Minnow", timeOfDay: "morning", notes: "Summer inshore fishing for redfish, snook, and stripers. Match the local baitfish.", targetFish: "Redfish" },
+      { month: 10, species: "Callinectes sapidus", insectName: "Blue Crab", insectType: "other", patternName: "Merkin Crab", timeOfDay: "morning", notes: "Fall permit and bonefish opportunities. Crab patterns are essential.", targetFish: "Permit" },
+    ],
+  };
+
+  let totalAdded = 0;
+  let totalSkipped = 0;
+
+  for (let i = 0; i < waterBodies.length; i++) {
+    const wb = waterBodies[i]!;
+    console.log(progressBar(i + 1, waterBodies.length, wb.name));
+
+    // Find matching regional hatch data
+    const regionalData = REGIONAL_HATCHES[wb.region];
+    if (!regionalData) {
+      log.info(`No hatch templates for region: ${wb.region} (${wb.name})`);
+      continue;
+    }
+
+    for (const hatch of regionalData) {
+      // Check for existing entry
+      const existing = await prisma.hatchEntry.findFirst({
+        where: {
+          waterBody: wb.name,
+          month: hatch.month,
+          insectName: hatch.insectName,
+        },
+      });
+
+      if (existing) {
+        totalSkipped++;
+        continue;
+      }
+
+      // Try to link to a fly pattern by name
+      const linkedPattern = await prisma.flyPattern.findFirst({
+        where: { name: { contains: hatch.patternName, mode: "insensitive" } },
+        select: { id: true },
+      });
+
+      await prisma.hatchEntry.create({
+        data: {
+          waterBody: wb.name,
+          region: wb.region,
+          state: wb.state,
+          month: hatch.month,
+          species: hatch.species,
+          insectName: hatch.insectName,
+          insectType: hatch.insectType,
+          patternName: hatch.patternName,
+          flyPatternId: linkedPattern?.id ?? null,
+          timeOfDay: hatch.timeOfDay,
+          targetFish: hatch.targetFish ?? null,
+          notes: `${hatch.notes} (${wb.name}${wb.state ? `, ${wb.state}` : ""})`,
+        },
+      });
+
+      totalAdded++;
+    }
+  }
+
+  log.success(`Hatch enrichment complete: ${totalAdded} entries added, ${totalSkipped} skipped (already existed)`);
+
+  // Summary
+  const regions = [...new Set(waterBodies.map((wb) => wb.region))];
+  log.info(`Regions processed: ${regions.join(", ")}`);
+  log.info(`Water bodies processed: ${waterBodies.length}`);
+}
+
+// ─── COMMAND: import-water-bodies-csv ────────────────────────────────────
+
+async function cmdImportWaterBodiesCsv(args: string[]) {
+  if (args.length === 0) {
+    console.error(`Usage: pipeline import-water-bodies-csv <csv-file>
+
+CSV format (header row required):
+  name,region,state,waterType,latitude,longitude,description
+
+Example:
+  South Platte River,Rocky Mountains,CO,tailwater,39.22,-105.21,"Premier tailwater fishery"
+  Yellowstone River,Rocky Mountains,MT,river,45.63,-110.56,"America's longest undammed river"`);
+    process.exit(1);
+  }
+
+  const fs = await import("fs");
+  const filePath = args[0]!;
+
+  if (!fs.existsSync(filePath)) {
+    log.error(`File not found: ${filePath}`);
+    process.exit(1);
+  }
+
+  const content = fs.readFileSync(filePath, "utf-8");
+  const lines = content.split("\n").filter((line) => line.trim());
+
+  if (lines.length < 2) {
+    log.error("CSV must have a header row and at least one data row");
+    process.exit(1);
+  }
+
+  // Parse header
+  const headers = lines[0]!.split(",").map((h) => h.trim().toLowerCase());
+  const nameIdx = headers.indexOf("name");
+  const regionIdx = headers.indexOf("region");
+  const stateIdx = headers.indexOf("state");
+  const typeIdx = headers.indexOf("watertype");
+  const latIdx = headers.indexOf("latitude");
+  const lonIdx = headers.indexOf("longitude");
+  const descIdx = headers.indexOf("description");
+
+  if (nameIdx === -1 || regionIdx === -1) {
+    log.error("CSV must have 'name' and 'region' columns");
+    process.exit(1);
+  }
+
+  log.info(`Importing ${lines.length - 1} water bodies from CSV`);
+
+  let added = 0;
+  let skipped = 0;
+
+  for (let i = 1; i < lines.length; i++) {
+    // Simple CSV parsing (handles quoted fields)
+    const fields = parseCsvLine(lines[i]!);
+    const name = fields[nameIdx]?.trim();
+    const region = fields[regionIdx]?.trim();
+
+    if (!name || !region) {
+      log.warn(`Skipping line ${i + 1}: missing name or region`);
+      continue;
+    }
+
+    const state = stateIdx >= 0 ? fields[stateIdx]?.trim() || null : null;
+    const waterType = typeIdx >= 0 ? fields[typeIdx]?.trim() || "river" : "river";
+    const latitude = latIdx >= 0 ? parseFloat(fields[latIdx] ?? "") || null : null;
+    const longitude = lonIdx >= 0 ? parseFloat(fields[lonIdx] ?? "") || null : null;
+    const description = descIdx >= 0 ? fields[descIdx]?.trim() || null : null;
+
+    const waterSlug = slugify(`${name} ${state ?? region}`);
+
+    const existing = await prisma.waterBody.findUnique({
+      where: { slug: waterSlug },
+    });
+
+    if (existing) {
+      skipped++;
+      continue;
+    }
+
+    await prisma.waterBody.create({
+      data: {
+        name,
+        slug: waterSlug,
+        region,
+        state,
+        waterType,
+        latitude,
+        longitude,
+        description,
+      },
+    });
+    added++;
+  }
+
+  log.success(`Done — ${added} water bodies imported, ${skipped} skipped`);
+
+  if (added > 0) {
+    log.info("Tip: Run 'npm run pipeline enrich-hatches' to auto-populate hatch data");
+  }
+}
+
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === "," && !inQuotes) {
+      fields.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current);
+  return fields;
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -792,6 +1172,9 @@ Commands:
   techniques [slug]            Discover YouTube videos for tying techniques
   add-techniques <names...>    Add new tying techniques to the database
   add-hatches <file|--inline>  Add hatch chart entries from JSON file or inline
+  add-water-bodies <file|--inline>  Add water bodies from JSON
+  import-water-bodies-csv <file>    Import water bodies from CSV file
+  enrich-hatches [region]      Auto-populate hatch data for water bodies
   status                       Show pipeline statistics
   run [patterns...]            Run full pipeline end-to-end
 `);
@@ -847,6 +1230,15 @@ Commands:
         break;
       case "add-hatches":
         await cmdAddHatches(args);
+        break;
+      case "add-water-bodies":
+        await cmdAddWaterBodies(args);
+        break;
+      case "import-water-bodies-csv":
+        await cmdImportWaterBodiesCsv(args);
+        break;
+      case "enrich-hatches":
+        await cmdEnrichHatches(args);
         break;
       case "status":
         await cmdStatus();
