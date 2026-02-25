@@ -1271,6 +1271,319 @@ function parseCsvLine(line: string): string[] {
   return fields;
 }
 
+// ─── COMMAND: enrich ─────────────────────────────────────────────────────────
+
+/**
+ * Enrich existing patterns that are missing tying steps, video resources,
+ * or other data. Discovers new sources, extracts tying steps, and merges
+ * them into the existing pattern without duplicating or overwriting.
+ */
+async function cmdEnrich(args: string[]) {
+  const dryRun = args.includes("--dry-run");
+  const limitArg = args.find((a) => a.startsWith("--limit="));
+  const limit = limitArg ? parseInt(limitArg.split("=")[1]!, 10) : 20;
+  const filterSlugs = args.filter((a) => !a.startsWith("--"));
+
+  log.info("Enriching existing patterns with missing data");
+
+  // Find patterns that need enrichment
+  const allPatterns = filterSlugs.length > 0
+    ? await prisma.flyPattern.findMany({
+        where: { slug: { in: filterSlugs } },
+        include: {
+          tyingSteps: { select: { id: true } },
+          resources: { select: { id: true, type: true } },
+          materials: { select: { id: true } },
+        },
+      })
+    : await prisma.flyPattern.findMany({
+        include: {
+          tyingSteps: { select: { id: true } },
+          resources: { select: { id: true, type: true } },
+          materials: { select: { id: true } },
+        },
+      });
+
+  // Identify patterns needing enrichment
+  const needsEnrichment = allPatterns.filter((p) => {
+    const noSteps = p.tyingSteps.length === 0;
+    const noVideo = !p.resources.some((r) => r.type === "video");
+    const sparseMaterials = p.materials.length < 3;
+    return noSteps || noVideo || sparseMaterials;
+  });
+
+  // Sort: patterns missing the most things first
+  needsEnrichment.sort((a, b) => {
+    const scoreA =
+      (a.tyingSteps.length === 0 ? 1 : 0) +
+      (a.resources.some((r) => r.type === "video") ? 0 : 1) +
+      (a.materials.length < 3 ? 1 : 0);
+    const scoreB =
+      (b.tyingSteps.length === 0 ? 1 : 0) +
+      (b.resources.some((r) => r.type === "video") ? 0 : 1) +
+      (b.materials.length < 3 ? 1 : 0);
+    return scoreB - scoreA;
+  });
+
+  const toProcess = needsEnrichment.slice(0, limit);
+
+  log.info(
+    `${needsEnrichment.length} patterns need enrichment, processing ${toProcess.length}`
+  );
+
+  if (toProcess.length === 0) {
+    log.success("All patterns are fully enriched — nothing to do");
+    return;
+  }
+
+  // Show what will be enriched
+  for (const p of toProcess) {
+    const gaps: string[] = [];
+    if (p.tyingSteps.length === 0) gaps.push("steps");
+    if (!p.resources.some((r) => r.type === "video")) gaps.push("video");
+    if (p.materials.length < 3) gaps.push("materials");
+    console.log(`  ${p.name} — missing: ${gaps.join(", ")}`);
+  }
+
+  if (dryRun) {
+    log.info("Dry run — no changes will be made");
+    return;
+  }
+
+  let enriched = 0;
+  let failed = 0;
+
+  for (let i = 0; i < toProcess.length; i++) {
+    const pattern = toProcess[i]!;
+    console.log(progressBar(i + 1, toProcess.length, pattern.name));
+
+    try {
+      const needsSteps = pattern.tyingSteps.length === 0;
+      const needsVideo = !pattern.resources.some((r) => r.type === "video");
+
+      // Step 1: Discover new sources for this pattern
+      let newSources = 0;
+
+      // YouTube discovery (for video + transcript-based step extraction)
+      if (needsSteps || needsVideo) {
+        try {
+          const ytResults = await searchYouTube(pattern.name);
+          const scored = ytResults
+            .map((r) => ({ result: r, score: scoreYouTubeResult(r) }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 3);
+
+          for (const { result } of scored) {
+            const url = youtubeVideoUrl(result.videoId);
+
+            // Check if we already have this source
+            const existingSource = await prisma.stagedSource.findFirst({
+              where: { url },
+            });
+            if (existingSource) continue;
+
+            const source = await createStagedSource({
+              sourceType: "youtube",
+              url,
+              title: result.title,
+              creatorName: result.channelTitle,
+              platform: "YouTube",
+              patternQuery: pattern.name,
+              metadata: {
+                videoId: result.videoId,
+                viewCount: result.viewCount,
+                likeCount: result.likeCount,
+                enrichment: true,
+              },
+            });
+
+            const content = buildYouTubeContent(result);
+            await updateStagedSourceContent(source.id, content);
+            newSources++;
+          }
+        } catch (err) {
+          log.warn("YouTube discovery failed during enrichment", {
+            pattern: pattern.name,
+            error: String(err),
+          });
+        }
+      }
+
+      // Blog discovery (for additional content)
+      if (needsSteps && newSources === 0) {
+        try {
+          const blogResults = await discoverBlogContent(pattern.name);
+          const scored = blogResults
+            .map((r) => ({ result: r, score: scoreBlogResult(r) }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 2);
+
+          for (const { result } of scored) {
+            const existingSource = await prisma.stagedSource.findFirst({
+              where: { url: result.url },
+            });
+            if (existingSource) continue;
+
+            const source = await createStagedSource({
+              sourceType: "blog",
+              url: result.url,
+              title: result.title,
+              creatorName: result.author ?? undefined,
+              platform: result.siteName,
+              patternQuery: pattern.name,
+            });
+
+            await updateStagedSourceContent(source.id, result.content);
+            newSources++;
+          }
+        } catch (err) {
+          log.warn("Blog discovery failed during enrichment", {
+            pattern: pattern.name,
+            error: String(err),
+          });
+        }
+      }
+
+      if (newSources === 0) {
+        log.warn(`No new sources found for ${pattern.name}`);
+        failed++;
+        continue;
+      }
+
+      // Step 2: Extract from the newly scraped sources
+      const newlyScraped = await prisma.stagedSource.findMany({
+        where: {
+          patternQuery: pattern.name,
+          status: "scraped",
+        },
+        orderBy: { scrapedAt: "desc" },
+        take: 5,
+      });
+
+      const extractedPatterns: ExtractedPattern[] = [];
+
+      for (const source of newlyScraped) {
+        if (!source.rawContent) continue;
+
+        try {
+          const data = await extractPattern(
+            source.rawContent,
+            source.patternQuery,
+            source.sourceType as "youtube" | "blog"
+          );
+
+          if (data) {
+            extractedPatterns.push(data);
+
+            const confidence = calculateConfidence(
+              data,
+              source.sourceType as "youtube" | "blog",
+              source.rawContent.length
+            );
+
+            await createStagedExtraction({
+              sourceId: source.id,
+              patternName: data.patternName,
+              normalizedSlug: slugify(data.patternName),
+              extractedData: data as unknown as Record<string, unknown>,
+              confidence,
+            });
+          }
+        } catch (err) {
+          log.warn("Extraction failed during enrichment", {
+            source: source.url,
+            error: String(err),
+          });
+        }
+      }
+
+      if (extractedPatterns.length === 0) {
+        log.warn(`No successful extractions for ${pattern.name}`);
+        failed++;
+        continue;
+      }
+
+      // Step 3: Merge enrichment data into existing pattern
+      await prisma.$transaction(async (tx) => {
+        // Add tying steps if missing
+        if (needsSteps) {
+          // Pick best tying steps from extractions
+          let bestSteps: ExtractedPattern["tyingSteps"] = [];
+          let bestStepScore = 0;
+
+          for (const ext of extractedPatterns) {
+            const steps = ext.tyingSteps ?? [];
+            if (steps.length === 0) continue;
+            const totalLen = steps.reduce(
+              (sum, s) => sum + (s.instruction?.length ?? 0),
+              0
+            );
+            const score = steps.length * 10 + totalLen;
+            if (score > bestStepScore) {
+              bestStepScore = score;
+              bestSteps = steps;
+            }
+          }
+
+          if (bestSteps.length > 0) {
+            await tx.tyingStep.createMany({
+              data: bestSteps.map((step, i) => ({
+                flyPatternId: pattern.id,
+                position: i + 1,
+                title: step.title,
+                instruction: step.instruction,
+                tip: step.tip,
+              })),
+            });
+            log.info(`Added ${bestSteps.length} tying steps to ${pattern.name}`);
+          }
+        }
+
+        // Add new video resources if missing
+        for (const source of newlyScraped) {
+          if (source.sourceType !== "youtube") continue;
+
+          const existingResource = await tx.resource.findFirst({
+            where: {
+              flyPatternId: pattern.id,
+              url: source.url,
+            },
+          });
+
+          if (!existingResource) {
+            await tx.resource.create({
+              data: {
+                flyPatternId: pattern.id,
+                type: "video",
+                title: source.title ?? pattern.name,
+                creatorName: source.creatorName ?? "Unknown",
+                platform: source.platform ?? "YouTube",
+                url: source.url,
+                qualityScore: 3,
+              },
+            });
+          }
+        }
+      });
+
+      enriched++;
+      log.success(`Enriched ${pattern.name}`, {
+        newSources: String(newSources),
+        extractions: String(extractedPatterns.length),
+      });
+    } catch (err) {
+      log.error(`Enrichment failed for ${pattern.name}`, {
+        error: String(err),
+      });
+      failed++;
+    }
+  }
+
+  log.success(
+    `Enrichment complete: ${enriched} patterns enriched, ${failed} failed`
+  );
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -1298,6 +1611,9 @@ Commands:
   add-water-bodies <file|--inline>  Add water bodies from JSON
   import-water-bodies-csv <file>    Import water bodies from CSV file
   enrich-hatches [region]      Auto-populate hatch data for water bodies
+  enrich [slugs...] [--dry-run] [--limit=N]
+                               Enrich existing patterns with missing tying
+                               steps, video resources, and materials
   images [slugs...]            Discover real images for fly patterns
                                Uses Google CSE, Bing, and YouTube thumbnails
   status                       Show pipeline statistics
@@ -1307,7 +1623,7 @@ Commands:
   }
 
   // Validate config for commands that need APIs
-  if (["discover", "extract", "run", "techniques"].includes(command)) {
+  if (["discover", "extract", "run", "techniques", "enrich"].includes(command)) {
     const errors = validateConfig();
     if (errors.length > 0) {
       console.error("\nConfiguration errors:");
@@ -1364,6 +1680,9 @@ Commands:
         break;
       case "enrich-hatches":
         await cmdEnrichHatches(args);
+        break;
+      case "enrich":
+        await cmdEnrich(args);
         break;
       case "images":
         await cmdImages(args);

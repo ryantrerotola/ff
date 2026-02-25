@@ -48,7 +48,8 @@ IMPORTANT EXTRACTION RULES:
 8. If variations of the pattern are described (e.g., "Chartreuse Clouser", "Deep Clouser"), include them in the variations array
 9. Extract the origin/history of the pattern if mentioned
 10. Write a clear, informative description even if the source is informal/conversational
-11. For the pattern name, use the canonical/most common name`;
+11. For the pattern name, use the canonical/most common name
+12. Extract TYING STEPS: If the content describes step-by-step instructions for tying the fly, extract them as ordered steps. Each step should have a short title and detailed instruction. Include pro tips when mentioned. Steps should follow the actual tying sequence described in the content.`;
 
 /**
  * Build the user prompt for extracting data from content.
@@ -253,6 +254,36 @@ export const EXTRACTION_TOOL = {
         description:
           "Material substitutions mentioned in the content",
       },
+      tyingSteps: {
+        type: "array" as const,
+        items: {
+          type: "object" as const,
+          properties: {
+            position: {
+              type: "number" as const,
+              description: "Step number in tying sequence (1 = first step)",
+            },
+            title: {
+              type: "string" as const,
+              description:
+                "Short title for this step (e.g., 'Attach Thread', 'Tie In Tail', 'Wrap Body')",
+            },
+            instruction: {
+              type: "string" as const,
+              description:
+                "Detailed instruction for this step. Include specific techniques, wrap counts, proportions, and placement details.",
+            },
+            tip: {
+              type: ["string", "null"] as const,
+              description:
+                "Optional pro tip or common mistake to avoid for this step",
+            },
+          },
+          required: ["position", "title", "instruction", "tip"],
+        },
+        description:
+          "Step-by-step tying instructions extracted from the content. Only include if the source describes how to tie the fly.",
+      },
     },
     required: [
       "patternName",
@@ -265,6 +296,7 @@ export const EXTRACTION_TOOL = {
       "materials",
       "variations",
       "substitutions",
+      "tyingSteps",
     ],
   },
 };

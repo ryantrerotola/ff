@@ -118,11 +118,27 @@ export async function extractPattern(
       m.position = i + 1;
     });
 
+    // ── Ensure tyingSteps exists and normalize positions ─────────────
+    if (!data.tyingSteps) {
+      data.tyingSteps = [];
+    }
+    data.tyingSteps.forEach((step, i) => {
+      step.position = i + 1;
+      step.title = step.title?.slice(0, 200) ?? `Step ${i + 1}`;
+      step.instruction = step.instruction?.slice(0, 2000) ?? "";
+      if (step.tip) step.tip = step.tip.slice(0, 500);
+    });
+    // Remove steps with empty instructions
+    data.tyingSteps = data.tyingSteps.filter(
+      (s) => s.instruction && s.instruction.trim().length > 0
+    );
+
     log.success("Pattern extracted", {
       pattern: data.patternName,
       materials: String(data.materials.length),
       variations: String(data.variations.length),
       substitutions: String(data.substitutions.length),
+      tyingSteps: String(data.tyingSteps.length),
     });
 
     return data;
@@ -212,6 +228,11 @@ export function calculateConfidence(
   const materialTypes = new Set(extracted.materials.map((m) => m.type));
   if (materialTypes.size >= 4) score += 5;
   else if (materialTypes.size >= 3) score += 3;
+
+  // Has tying steps (sign of detailed source)
+  maxScore += 10;
+  if (extracted.tyingSteps && extracted.tyingSteps.length >= 4) score += 10;
+  else if (extracted.tyingSteps && extracted.tyingSteps.length >= 2) score += 5;
 
   return Math.round((score / maxScore) * 100) / 100;
 }
