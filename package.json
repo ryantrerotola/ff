@@ -17,7 +17,11 @@
     "db:seed-news": "tsx prisma/seed-news.ts",
     "db:seed-hatches": "tsx prisma/seed-hatches.ts",
     "db:seed-images": "tsx prisma/seed-images.ts",
-    "db:seed-all": "tsx prisma/seed.ts && tsx prisma/seed-news.ts && tsx prisma/seed-hatches.ts && tsx prisma/seed-techniques.ts && tsx prisma/seed-images.ts",
+    "db:seed-patterns-extended": "tsx prisma/seed-patterns-extended.ts",
+    "db:seed-water-bodies": "tsx prisma/seed-water-bodies.ts",
+    "db:seed-patterns-remaining": "tsx prisma/seed-patterns-remaining.ts",
+    "db:seed-resources-extended": "tsx prisma/seed-resources-extended.ts",
+    "db:seed-all": "tsx prisma/seed.ts && tsx prisma/seed-patterns-extended.ts && tsx prisma/seed-patterns-remaining.ts && tsx prisma/seed-resources-extended.ts && tsx prisma/seed-news.ts && tsx prisma/seed-hatches.ts && tsx prisma/seed-techniques.ts && tsx prisma/seed-water-bodies.ts && tsx prisma/seed-images.ts",
     "db:studio": "prisma studio",
     "pipeline": "tsx src/pipeline/cli.ts",
     "pipeline:discover": "tsx src/pipeline/cli.ts discover",
@@ -31,6 +35,10 @@
     "pipeline:techniques": "tsx src/pipeline/cli.ts techniques",
     "pipeline:add-techniques": "tsx src/pipeline/cli.ts add-techniques",
     "pipeline:add-hatches": "tsx src/pipeline/cli.ts add-hatches",
+    "pipeline:add-water-bodies": "tsx src/pipeline/cli.ts add-water-bodies",
+    "pipeline:import-water-bodies-csv": "tsx src/pipeline/cli.ts import-water-bodies-csv",
+    "pipeline:enrich-hatches": "tsx src/pipeline/cli.ts enrich-hatches",
+    "pipeline:images": "tsx src/pipeline/cli.ts images",
     "pipeline:run": "tsx src/pipeline/cli.ts run",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -73,6 +81,6 @@
     "vitest": "^4.0.18"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts && tsx prisma/seed-news.ts && tsx prisma/seed-hatches.ts && tsx prisma/seed-techniques.ts"
+    "seed": "tsx prisma/seed.ts && tsx prisma/seed-patterns-extended.ts && tsx prisma/seed-patterns-remaining.ts && tsx prisma/seed-resources-extended.ts && tsx prisma/seed-news.ts && tsx prisma/seed-hatches.ts && tsx prisma/seed-techniques.ts && tsx prisma/seed-water-bodies.ts"
   }
 }

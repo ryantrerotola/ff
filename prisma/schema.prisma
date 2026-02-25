@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
@@ -835,6 +836,7 @@ model TyingTechnique {
   updatedAt    DateTime             @updatedAt @map("updated_at")
 
   videos TechniqueVideo[]
+  steps  TechniqueStep[]
 
   @@index([category])
   @@index([difficulty])
@@ -858,6 +860,45 @@ model TechniqueVideo {
 
   @@index([techniqueId])
   @@map("technique_videos")
+}
+
+// ─── Technique Steps ───────────────────────────────────────────────────────
+
+model TechniqueStep {
+  id           String         @id @default(uuid()) @db.Uuid
+  techniqueId  String         @map("technique_id") @db.Uuid
+  position     Int
+  title        String
+  instruction  String         @db.Text
+  imageUrl     String?        @map("image_url")
+  tip          String?        @db.Text
+
+  technique TyingTechnique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+
+  @@index([techniqueId])
+  @@map("technique_steps")
+}
+
+// ─── Water Bodies ──────────────────────────────────────────────────────────
+
+model WaterBody {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  state       String?
+  region      String
+  latitude    Float?
+  longitude   Float?
+  waterType   String   @default("river") @map("water_type")
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([name, region])
+  @@index([region])
+  @@index([state])
+  @@index([slug])
+  @@map("water_bodies")
 }
 
 // ─── Rate Limiting ──────────────────────────────────────────────────────────

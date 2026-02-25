@@ -131,6 +131,9 @@ export default async function TechniquePage({ params }: TechniquePageProps) {
           videos: {
             orderBy: { qualityScore: "desc" },
           },
+          steps: {
+            orderBy: { position: "asc" },
+          },
         },
       }),
     );
@@ -245,6 +248,44 @@ export default async function TechniquePage({ params }: TechniquePageProps) {
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {/* Step-by-Step Instructions */}
+          {technique.steps.length > 0 && (
+            <section className="mt-10">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Step-by-Step Instructions
+              </h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {technique.steps.length} steps to master this technique.
+              </p>
+
+              <ol className="mt-6 space-y-6">
+                {technique.steps.map((step) => (
+                  <li key={step.id} className="relative flex gap-4">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+                      {step.position}
+                    </div>
+                    <div className="flex-1 pb-2">
+                      <h3 className="font-semibold text-gray-900 dark:text-white">
+                        {step.title}
+                      </h3>
+                      <p className="mt-1 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                        {step.instruction}
+                      </p>
+                      {step.tip && (
+                        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/20">
+                          <p className="text-sm text-amber-800 dark:text-amber-300">
+                            <span className="font-semibold">Pro tip:</span>{" "}
+                            {step.tip}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
             </section>
           )}
 
