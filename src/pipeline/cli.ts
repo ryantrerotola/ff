@@ -1271,6 +1271,217 @@ function parseCsvLine(line: string): string[] {
   return fields;
 }
 
+// ─── COMMAND: enrich-techniques ──────────────────────────────────────────────
+
+/**
+ * Enrich tying techniques that have generic/missing data.
+ * Uses Claude to generate detailed step-by-step instructions,
+ * real descriptions, and proper key points for each technique.
+ * Also discovers YouTube tutorial videos.
+ */
+async function cmdEnrichTechniques(args: string[]) {
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+
+  const dryRun = args.includes("--dry-run");
+  const limitFlag = args.find((a) => a.startsWith("--limit="));
+  const limit = limitFlag ? parseInt(limitFlag.split("=")[1]!, 10) : 0;
+  const slugFilters = args.filter((a) => !a.startsWith("--"));
+
+  // Find techniques that need enrichment (missing steps = generic pipeline-created)
+  const allTechniques = await prisma.tyingTechnique.findMany({
+    where: slugFilters.length > 0 ? { slug: { in: slugFilters } } : undefined,
+    include: {
+      steps: true,
+      videos: true,
+    },
+    orderBy: { name: "asc" },
+  });
+
+  // Filter to techniques that are incomplete
+  const incomplete = allTechniques.filter((t) => {
+    const hasGenericDesc = t.description.startsWith("Learn the ") && t.description.includes("technique for fly tying");
+    const noSteps = t.steps.length === 0;
+    const fewVideos = t.videos.length < 2;
+    return noSteps || hasGenericDesc || fewVideos;
+  });
+
+  if (incomplete.length === 0) {
+    log.success("All techniques already have complete data!");
+    return;
+  }
+
+  const toProcess = limit > 0 ? incomplete.slice(0, limit) : incomplete;
+
+  log.info(`Found ${incomplete.length} techniques needing enrichment${limit > 0 ? ` (processing ${toProcess.length})` : ""}`);
+
+  if (dryRun) {
+    log.info("DRY RUN — listing techniques that would be enriched:");
+    for (const t of toProcess) {
+      const issues: string[] = [];
+      if (t.steps.length === 0) issues.push("no steps");
+      if (t.videos.length === 0) issues.push("no videos");
+      if (t.description.startsWith("Learn the ")) issues.push("generic description");
+      console.log(`  ${t.name} (${t.category}, ${t.difficulty}) — ${issues.join(", ")}`);
+    }
+    return;
+  }
+
+  const anthropic = new Anthropic({
+    apiKey: PIPELINE_CONFIG.anthropic.apiKey,
+  });
+
+  const TECHNIQUE_TOOL = {
+    name: "save_technique_data" as const,
+    description: "Save enriched technique data with detailed steps and description.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        description: {
+          type: "string" as const,
+          description: "A detailed 2-4 sentence description of this fly tying technique. Explain what it is, when it's used, and why it matters. Write for fly tiers, not for a general audience.",
+        },
+        keyPoints: {
+          type: "array" as const,
+          items: { type: "string" as const },
+          description: "5-7 key points or tips about this technique. Each should be a specific, actionable piece of advice — not generic filler.",
+        },
+        steps: {
+          type: "array" as const,
+          items: {
+            type: "object" as const,
+            properties: {
+              position: { type: "number" as const, description: "Step order starting at 1" },
+              title: { type: "string" as const, description: "Short step title (3-6 words)" },
+              instruction: { type: "string" as const, description: "Detailed instruction for this step (2-4 sentences). Be specific about hand positions, thread tension, material placement, etc." },
+              tip: { type: "string" as const, description: "Optional pro tip for this step. Include only if there's a genuinely useful tip." },
+            },
+            required: ["position", "title", "instruction"],
+          },
+          description: "Step-by-step instructions for performing this technique. Include 4-8 detailed steps.",
+        },
+      },
+      required: ["description", "keyPoints", "steps"],
+    },
+  };
+
+  let enriched = 0;
+  let failed = 0;
+
+  for (const technique of toProcess) {
+    log.info(`Enriching: ${technique.name} (${technique.category})`);
+
+    try {
+      const response = await anthropic.messages.create({
+        model: PIPELINE_CONFIG.anthropic.model,
+        max_tokens: 4096,
+        system: `You are an expert fly tying instructor writing content for a fly fishing education website.
+You have decades of experience teaching beginners through advanced tiers. Your instructions are
+detailed, precise, and practical. You always describe exact hand positions, thread tension, and
+material handling. You write like you're sitting next to the student at the vise.
+
+IMPORTANT RULES:
+1. Be specific and technical — use real fly tying terminology (bobbin, hackle pliers, dubbing loop, etc.)
+2. Each step should describe ONE discrete action, not multiple actions crammed together
+3. Tips should be genuinely useful insights from experience, not obvious statements
+4. Key points should be specific to THIS technique, not generic advice
+5. Description should explain what this technique IS, not just say "learn this technique"
+6. Steps should follow the actual physical sequence a tier would perform at the vise`,
+        tools: [TECHNIQUE_TOOL],
+        tool_choice: { type: "tool", name: "save_technique_data" },
+        messages: [
+          {
+            role: "user",
+            content: `Generate detailed step-by-step instructions for the fly tying technique: "${technique.name}"
+
+Category: ${technique.category.replace(/_/g, " ")}
+Difficulty: ${technique.difficulty}
+
+Provide:
+1. A real, detailed description (not a generic "Learn the X technique" placeholder)
+2. 5-7 specific key points / tips
+3. 4-8 detailed steps with clear instructions
+
+The content should be appropriate for the ${technique.difficulty} difficulty level.`,
+          },
+        ],
+      });
+
+      // Extract tool use result
+      const toolBlock = response.content.find((b) => b.type === "tool_use");
+      if (!toolBlock || toolBlock.type !== "tool_use") {
+        log.error(`No tool response for ${technique.name}`);
+        failed++;
+        continue;
+      }
+
+      const data = toolBlock.input as {
+        description: string;
+        keyPoints: string[];
+        steps: { position: number; title: string; instruction: string; tip?: string }[];
+      };
+
+      // Validate
+      if (!data.description || !data.steps || data.steps.length === 0) {
+        log.error(`Empty extraction for ${technique.name}`);
+        failed++;
+        continue;
+      }
+
+      // Update technique in a transaction
+      await prisma.$transaction(async (tx) => {
+        // Update description and key points
+        await tx.tyingTechnique.update({
+          where: { id: technique.id },
+          data: {
+            description: data.description,
+            keyPoints: data.keyPoints ?? technique.keyPoints,
+          },
+        });
+
+        // Replace steps (delete old + create new)
+        await tx.techniqueStep.deleteMany({
+          where: { techniqueId: technique.id },
+        });
+
+        if (data.steps.length > 0) {
+          await tx.techniqueStep.createMany({
+            data: data.steps.map((s, i) => ({
+              techniqueId: technique.id,
+              position: s.position ?? i + 1,
+              title: s.title.slice(0, 200),
+              instruction: s.instruction,
+              tip: s.tip ?? null,
+            })),
+          });
+        }
+      });
+
+      log.success(`Enriched: ${technique.name} — ${data.steps.length} steps, ${data.keyPoints?.length ?? 0} key points`);
+      enriched++;
+    } catch (err) {
+      log.error(`Failed to enrich ${technique.name}`, { error: String(err) });
+      failed++;
+    }
+  }
+
+  // Discover videos for any techniques that still need them
+  const noVideoTechniques = toProcess.filter((t) => t.videos.length < 2);
+  if (noVideoTechniques.length > 0 && PIPELINE_CONFIG.youtube.apiKey) {
+    log.info(`Discovering videos for ${noVideoTechniques.length} techniques...`);
+    for (const t of noVideoTechniques) {
+      try {
+        await discoverTechniqueVideos(t.slug);
+      } catch (err) {
+        log.error(`Video discovery failed for ${t.name}`, { error: String(err) });
+      }
+    }
+  } else if (!PIPELINE_CONFIG.youtube.apiKey) {
+    log.warn("Skipping video discovery — YOUTUBE_API_KEY not set");
+  }
+
+  log.success(`Technique enrichment complete: ${enriched} enriched, ${failed} failed, ${incomplete.length - toProcess.length} remaining`);
+}
+
 // ─── COMMAND: enrich ─────────────────────────────────────────────────────────
 
 /**
@@ -1607,6 +1818,9 @@ Commands:
   news                         Scrape fly fishing news from RSS feeds & sites
   techniques [slug]            Discover YouTube videos for tying techniques
   add-techniques <names...>    Add new tying techniques to the database
+  enrich-techniques [slugs...] [--dry-run] [--limit=N]
+                               Use Claude to generate real steps, descriptions,
+                               and key points for techniques with generic data
   add-hatches <file|--inline>  Add hatch chart entries from JSON file or inline
   add-water-bodies <file|--inline>  Add water bodies from JSON
   import-water-bodies-csv <file>    Import water bodies from CSV file
@@ -1623,7 +1837,7 @@ Commands:
   }
 
   // Validate config for commands that need APIs
-  if (["discover", "extract", "run", "techniques", "enrich"].includes(command)) {
+  if (["discover", "extract", "run", "techniques", "enrich", "enrich-techniques"].includes(command)) {
     const errors = validateConfig();
     if (errors.length > 0) {
       console.error("\nConfiguration errors:");
@@ -1668,6 +1882,9 @@ Commands:
         break;
       case "add-techniques":
         await cmdAddTechniques(args);
+        break;
+      case "enrich-techniques":
+        await cmdEnrichTechniques(args);
         break;
       case "add-hatches":
         await cmdAddHatches(args);

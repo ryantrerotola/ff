@@ -38,6 +38,7 @@
     "pipeline:add-water-bodies": "tsx src/pipeline/cli.ts add-water-bodies",
     "pipeline:import-water-bodies-csv": "tsx src/pipeline/cli.ts import-water-bodies-csv",
     "pipeline:enrich-hatches": "tsx src/pipeline/cli.ts enrich-hatches",
+    "pipeline:enrich-techniques": "tsx src/pipeline/cli.ts enrich-techniques",
     "pipeline:images": "tsx src/pipeline/cli.ts images",
     "pipeline:run": "tsx src/pipeline/cli.ts run",
     "validate-db": "tsx scripts/validate-db.ts",

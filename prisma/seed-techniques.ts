@@ -1367,6 +1367,9 @@ async function main() {
     const technique = await prisma.tyingTechnique.upsert({
       where: { slug: tech.slug },
       update: {
+        name: tech.name,
+        category: tech.category,
+        difficulty: tech.difficulty,
         description: tech.description,
         keyPoints: tech.keyPoints,
       },
@@ -1384,7 +1387,11 @@ async function main() {
       await prisma.techniqueVideo.upsert({
         where: { url: video.url },
         update: {
+          techniqueId: technique.id,
           title: video.title,
+          creatorName: video.creatorName,
+          thumbnailUrl: video.thumbnailUrl ?? null,
+          duration: video.duration ?? null,
           qualityScore: video.qualityScore,
         },
         create: {
@@ -1399,8 +1406,9 @@ async function main() {
       });
     }
 
-    const existingSteps = await prisma.techniqueStep.count({ where: { techniqueId: technique.id } });
-    if (existingSteps === 0 && tech.steps) {
+    // Always replace steps with seed data (delete + recreate)
+    if (tech.steps && tech.steps.length > 0) {
+      await prisma.techniqueStep.deleteMany({ where: { techniqueId: technique.id } });
       await prisma.techniqueStep.createMany({
         data: tech.steps.map((s) => ({ techniqueId: technique.id, ...s })),
       });
