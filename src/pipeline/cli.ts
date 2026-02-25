@@ -33,11 +33,32 @@ const log = createLogger("pipeline");
 // ─── COMMAND: discover ──────────────────────────────────────────────────────
 
 async function cmdDiscover(args: string[]) {
-  const patterns = args.length > 0
+  const allPatterns = args.length > 0
     ? args
     : SEED_PATTERNS.map((p) => p.name);
 
-  log.info(`Discovering sources for ${patterns.length} patterns`);
+  // Skip patterns that already have staged sources (incremental discovery)
+  const existingSources = await prisma.stagedSource.findMany({
+    select: { patternQuery: true },
+    distinct: ["patternQuery"],
+  });
+  const alreadyDiscovered = new Set(existingSources.map((s) => s.patternQuery));
+
+  const patterns = args.length > 0
+    ? allPatterns // Always process explicitly requested patterns
+    : allPatterns.filter((name) => !alreadyDiscovered.has(name));
+
+  const skipped = allPatterns.length - patterns.length;
+  if (skipped > 0) {
+    log.info(`Skipping ${skipped} already-discovered patterns`);
+  }
+
+  log.info(`Discovering sources for ${patterns.length} new patterns`);
+
+  if (patterns.length === 0) {
+    log.success("All patterns already discovered — nothing to do");
+    return;
+  }
 
   let totalSources = 0;
 
