@@ -15,6 +15,7 @@ import { ingestConsensusPattern, markAsIngested } from "./ingestion/ingest";
 
 import { scrapeNews } from "./scrapers/news";
 import { discoverTechniqueVideos } from "./scrapers/techniques";
+import { discoverPatternImages, isPlaceholderImage } from "./scrapers/images";
 
 import {
   createStagedSource,
@@ -535,6 +536,107 @@ async function cmdStatus() {
   console.log(`│ Patterns rejected:   ${String(stats.patterns.rejected).padStart(8)} │`);
   console.log(`│ Patterns ingested:   ${String(stats.patterns.ingested).padStart(8)} │`);
   console.log("└─────────────────────────────────────────┘\n");
+}
+
+// ─── COMMAND: images ─────────────────────────────────────────────────────────
+
+async function cmdImages(args: string[]) {
+  log.info("Discovering real images for fly patterns");
+
+  // Get all patterns, optionally filtered by slug args
+  const patterns = args.length > 0
+    ? await prisma.flyPattern.findMany({
+        where: { slug: { in: args } },
+        include: { images: true },
+      })
+    : await prisma.flyPattern.findMany({
+        include: { images: true },
+      });
+
+  // Find patterns that only have placeholder images (or no images at all)
+  const needsImages = patterns.filter((p) => {
+    if (p.images.length === 0) return true;
+    return p.images.every((img) => isPlaceholderImage(img.url));
+  });
+
+  log.info(
+    `${needsImages.length} of ${patterns.length} patterns need real images`
+  );
+
+  if (needsImages.length === 0) {
+    log.success("All patterns already have real images — nothing to do");
+    return;
+  }
+
+  let discovered = 0;
+  let failed = 0;
+
+  for (let i = 0; i < needsImages.length; i++) {
+    const pattern = needsImages[i]!;
+    console.log(progressBar(i + 1, needsImages.length, pattern.name));
+
+    // Find existing YouTube video IDs from staged sources for this pattern
+    const stagedSources = await prisma.stagedSource.findMany({
+      where: {
+        patternQuery: pattern.name,
+        sourceType: "youtube",
+        metadata: { not: undefined },
+      },
+      select: { metadata: true },
+    });
+
+    const videoIds = stagedSources
+      .map((s) => {
+        const meta = s.metadata as Record<string, unknown> | null;
+        return meta?.videoId as string | undefined;
+      })
+      .filter((id): id is string => !!id);
+
+    try {
+      const images = await discoverPatternImages(pattern.name, videoIds);
+
+      if (images.length === 0) {
+        log.warn(`No images found for ${pattern.name}`);
+        failed++;
+        continue;
+      }
+
+      // Take top 3 images
+      const topImages = images.slice(0, 3);
+
+      // Delete existing placeholder images for this pattern
+      await prisma.patternImage.deleteMany({
+        where: {
+          flyPatternId: pattern.id,
+          url: { contains: "placehold.co" },
+        },
+      });
+
+      // Create new image records
+      for (let j = 0; j < topImages.length; j++) {
+        const img = topImages[j]!;
+        await prisma.patternImage.create({
+          data: {
+            flyPatternId: pattern.id,
+            url: img.url,
+            caption: img.caption || `${pattern.name} fly pattern`,
+            isPrimary: j === 0,
+          },
+        });
+      }
+
+      discovered++;
+    } catch (err) {
+      log.error(`Image discovery failed for ${pattern.name}`, {
+        error: String(err),
+      });
+      failed++;
+    }
+  }
+
+  log.success(
+    `Image discovery complete: ${discovered} patterns updated, ${failed} failed`
+  );
 }
 
 // ─── COMMAND: run (full pipeline) ───────────────────────────────────────────
@@ -1196,6 +1298,8 @@ Commands:
   add-water-bodies <file|--inline>  Add water bodies from JSON
   import-water-bodies-csv <file>    Import water bodies from CSV file
   enrich-hatches [region]      Auto-populate hatch data for water bodies
+  images [slugs...]            Discover real images for fly patterns
+                               Uses Google CSE, Bing, and YouTube thumbnails
   status                       Show pipeline statistics
   run [patterns...]            Run full pipeline end-to-end
 `);
@@ -1260,6 +1364,9 @@ Commands:
         break;
       case "enrich-hatches":
         await cmdEnrichHatches(args);
+        break;
+      case "images":
+        await cmdImages(args);
         break;
       case "status":
         await cmdStatus();
