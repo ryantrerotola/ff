@@ -22,7 +22,12 @@ const serwist = new Serwist({
       {
         url: "/~offline",
         matcher({ request }) {
-          return request.destination === "document";
+          // Only fallback same-origin document requests — don't intercept
+          // cross-origin iframes (YouTube embeds, etc.)
+          return (
+            request.destination === "document" &&
+            new URL(request.url).origin === self.location.origin
+          );
         },
       },
     ],
