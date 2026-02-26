@@ -575,25 +575,28 @@ async function cmdImages(args: string[]) {
     const pattern = needsImages[i]!;
     console.log(progressBar(i + 1, needsImages.length, pattern.name));
 
-    // Find existing YouTube video IDs from staged sources for this pattern
+    // Find existing staged sources for this pattern (video IDs + scraped HTML)
     const stagedSources = await prisma.stagedSource.findMany({
-      where: {
-        patternQuery: pattern.name,
-        sourceType: "youtube",
-        metadata: { not: undefined },
-      },
-      select: { metadata: true },
+      where: { patternQuery: pattern.name },
+      select: { metadata: true, sourceType: true, rawContent: true },
     });
 
     const videoIds = stagedSources
+      .filter((s) => s.sourceType === "youtube")
       .map((s) => {
         const meta = s.metadata as Record<string, unknown> | null;
         return meta?.videoId as string | undefined;
       })
       .filter((id): id is string => !!id);
 
+    // Collect HTML content from blog sources for image extraction
+    const stagedHtml = stagedSources
+      .filter((s) => s.sourceType === "blog" && s.rawContent)
+      .map((s) => s.rawContent!)
+      .slice(0, 5);
+
     try {
-      const images = await discoverPatternImages(pattern.name, videoIds);
+      const images = await discoverPatternImages(pattern.name, videoIds, stagedHtml);
 
       if (images.length === 0) {
         log.warn(`No images found for ${pattern.name}`);
