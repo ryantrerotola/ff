@@ -15,7 +15,7 @@ import { ingestConsensusPattern, markAsIngested } from "./ingestion/ingest";
 
 import { scrapeNews } from "./scrapers/news";
 import { discoverTechniqueVideos } from "./scrapers/techniques";
-import { discoverPatternImages, isPlaceholderImage } from "./scrapers/images";
+import { discoverPatternImages, isPlaceholderImage, validateImageWithVision } from "./scrapers/images";
 
 import {
   createStagedSource,
@@ -604,8 +604,25 @@ async function cmdImages(args: string[]) {
         continue;
       }
 
-      // Take top 3 images
-      const topImages = images.slice(0, 3);
+      // Validate top candidates with Claude vision — only keep actual fly pattern photos
+      const validated: typeof images = [];
+      for (const img of images.slice(0, 8)) {
+        if (validated.length >= 3) break;
+        log.info(`  Validating: ${img.url.slice(0, 80)}...`);
+        const isValid = await validateImageWithVision(img.url, pattern.name);
+        if (isValid) {
+          validated.push(img);
+          log.info(`    ✓ Confirmed fly pattern photo`);
+        } else {
+          log.info(`    ✗ Not a fly pattern — skipped`);
+        }
+      }
+
+      if (validated.length === 0) {
+        log.warn(`No validated fly pattern images for ${pattern.name}`);
+        failed++;
+        continue;
+      }
 
       // Delete existing placeholder images for this pattern
       await prisma.patternImage.deleteMany({
@@ -616,8 +633,8 @@ async function cmdImages(args: string[]) {
       });
 
       // Create new image records
-      for (let j = 0; j < topImages.length; j++) {
-        const img = topImages[j]!;
+      for (let j = 0; j < validated.length; j++) {
+        const img = validated[j]!;
         await prisma.patternImage.create({
           data: {
             flyPatternId: pattern.id,
@@ -640,6 +657,76 @@ async function cmdImages(args: string[]) {
   log.success(
     `Image discovery complete: ${discovered} patterns updated, ${failed} failed`
   );
+}
+
+// ─── COMMAND: clean-images ──────────────────────────────────────────────────
+
+async function cmdCleanImages(args: string[]) {
+  const dryRun = args.includes("--dry-run");
+  const revalidate = args.includes("--revalidate");
+
+  if (revalidate) {
+    // Re-validate existing images with Claude vision, delete any that aren't fly patterns
+    log.info("Re-validating all non-placeholder images with Claude vision...");
+
+    const allImages = await prisma.patternImage.findMany({
+      where: {
+        url: { not: { contains: "placehold.co" } },
+        uploadedById: null, // Only check pipeline-discovered images, not user uploads
+      },
+      include: { flyPattern: { select: { name: true } } },
+    });
+
+    log.info(`Found ${allImages.length} pipeline images to validate`);
+
+    let removed = 0;
+    let kept = 0;
+
+    for (let i = 0; i < allImages.length; i++) {
+      const img = allImages[i]!;
+      console.log(progressBar(i + 1, allImages.length, img.flyPattern.name));
+
+      const isValid = await validateImageWithVision(img.url, img.flyPattern.name);
+
+      if (isValid) {
+        kept++;
+      } else {
+        log.info(`  ✗ Removing: ${img.url.slice(0, 80)} (${img.flyPattern.name})`);
+        if (!dryRun) {
+          await prisma.patternImage.delete({ where: { id: img.id } });
+        }
+        removed++;
+      }
+    }
+
+    log.success(
+      `Validation complete: ${kept} kept, ${removed} removed${dryRun ? " (dry run)" : ""}`
+    );
+    return;
+  }
+
+  // Default: delete ALL pipeline-discovered images (not user-uploaded)
+  const pipelineImages = await prisma.patternImage.count({
+    where: { uploadedById: null },
+  });
+
+  log.info(`Found ${pipelineImages} pipeline-discovered images to delete`);
+
+  if (pipelineImages === 0) {
+    log.success("No pipeline images to clean — nothing to do");
+    return;
+  }
+
+  if (dryRun) {
+    log.info("Dry run — no images will be deleted");
+    return;
+  }
+
+  const result = await prisma.patternImage.deleteMany({
+    where: { uploadedById: null },
+  });
+
+  log.success(`Deleted ${result.count} pipeline-discovered images`);
 }
 
 // ─── COMMAND: run (full pipeline) ───────────────────────────────────────────
@@ -1861,6 +1948,11 @@ Commands:
                                steps, video resources, and materials
   images [slugs...]            Discover real images for fly patterns
                                Uses Google CSE, Bing, and YouTube thumbnails
+                               Validates each image with Claude vision
+  clean-images [--dry-run]     Delete all pipeline-discovered images
+  clean-images --revalidate [--dry-run]
+                               Re-validate existing images with Claude vision
+                               and delete any that aren't fly pattern photos
   status                       Show pipeline statistics
   run [patterns...]            Run full pipeline end-to-end
 `);
@@ -1868,7 +1960,7 @@ Commands:
   }
 
   // Validate config for commands that need APIs
-  if (["discover", "extract", "run", "techniques", "enrich", "enrich-techniques"].includes(command)) {
+  if (["discover", "extract", "run", "techniques", "enrich", "enrich-techniques", "images", "clean-images"].includes(command)) {
     const errors = validateConfig();
     if (errors.length > 0) {
       console.error("\nConfiguration errors:");
@@ -1934,6 +2026,9 @@ Commands:
         break;
       case "images":
         await cmdImages(args);
+        break;
+      case "clean-images":
+        await cmdCleanImages(args);
         break;
       case "status":
         await cmdStatus();

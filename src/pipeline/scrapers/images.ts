@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import Anthropic from "@anthropic-ai/sdk";
 import { createLogger } from "../utils/logger";
 import { createRateLimiter, retry } from "../utils/rate-limit";
 import { PIPELINE_CONFIG } from "../config";
@@ -46,14 +47,21 @@ function isUsableImageUrl(url: string): boolean {
   if (!url || url.length < 10) return false;
   // Must be an absolute HTTP(S) URL
   if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
-  // Skip common junk: icons, logos, avatars, ads, tracking pixels, svgs
+  // Skip common junk: icons, logos, avatars, ads, tracking pixels, svgs, stock photos
   const lower = url.toLowerCase();
   const skipPatterns = [
     "logo", "icon", "avatar", "gravatar", "pixel", "tracking",
     "advertisement", "ad-", "/ads/", "badge", "button", "banner",
     "sprite", ".svg", "1x1", "spacer", "blank", "loading", "spinner",
     "favicon", "emoji", "smiley", "widget", "share", "social",
-    "placehold", "placeholder",
+    "placehold", "placeholder", "stock", "shutterstock", "gettyimages",
+    "istockphoto", "depositphotos", "dreamstime", "adobestock",
+    "thumbnail-default", "author-", "profile-", "/author/", "/profile/",
+    "/avatar/", "gravatar.com", "wp-includes", "admin-ajax",
+    "/plugins/", "/themes/", "cart", "checkout", "payment",
+    "newsletter", "subscribe", "promo", "coupon", "discount",
+    "header-bg", "footer-bg", "background", "hero-image",
+    "landscape", "scenery", "river-photo", "mountain-view",
   ];
   if (skipPatterns.some((p) => lower.includes(p))) return false;
   // Must end with an image extension or have common image path patterns
@@ -577,4 +585,105 @@ export async function discoverPatternImages(
  */
 export function isPlaceholderImage(url: string): boolean {
   return url.includes("placehold.co") || url.includes("placeholder");
+}
+
+// ─── Vision-Based Image Validation ──────────────────────────────────────────
+
+let anthropicClient: Anthropic | null = null;
+
+function getAnthropicClient(): Anthropic {
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({
+      apiKey: PIPELINE_CONFIG.anthropic.apiKey,
+    });
+  }
+  return anthropicClient;
+}
+
+/**
+ * Download an image and return it as a base64-encoded string with media type.
+ * Returns null if the image can't be fetched or is too large.
+ */
+async function downloadImageAsBase64(
+  url: string
+): Promise<{ base64: string; mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif" } | null> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": PIPELINE_CONFIG.scraping.userAgent,
+        Accept: "image/*",
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) return null;
+
+    const contentType = res.headers.get("content-type") || "";
+    let mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+    if (contentType.includes("png")) mediaType = "image/png";
+    else if (contentType.includes("webp")) mediaType = "image/webp";
+    else if (contentType.includes("gif")) mediaType = "image/gif";
+    else mediaType = "image/jpeg";
+
+    const buffer = await res.arrayBuffer();
+
+    // Skip images larger than 5MB (Claude's limit) or smaller than 5KB (likely junk)
+    if (buffer.byteLength > 5 * 1024 * 1024 || buffer.byteLength < 5000) return null;
+
+    const base64 = Buffer.from(buffer).toString("base64");
+    return { base64, mediaType };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Use Claude vision to verify an image is actually a fly pattern photo.
+ * Returns true only if the image clearly shows a tied fly fishing fly.
+ * Uses Haiku for speed and cost efficiency.
+ */
+export async function validateImageWithVision(
+  url: string,
+  patternName: string
+): Promise<boolean> {
+  const imageData = await downloadImageAsBase64(url);
+  if (!imageData) return false;
+
+  const client = getAnthropicClient();
+
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 50,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: imageData.mediaType,
+                data: imageData.base64,
+              },
+            },
+            {
+              type: "text",
+              text: `Is this a photo of a tied fly fishing fly (a "${patternName}" or similar fly pattern on a hook)? Answer ONLY "yes" or "no".`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const answer =
+      response.content[0]?.type === "text"
+        ? response.content[0].text.trim().toLowerCase()
+        : "";
+
+    return answer.startsWith("yes");
+  } catch (err) {
+    log.warn("Vision validation failed", { url, error: String(err) });
+    return false;
+  }
 }

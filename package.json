@@ -40,6 +40,7 @@
     "pipeline:enrich-hatches": "tsx src/pipeline/cli.ts enrich-hatches",
     "pipeline:enrich-techniques": "tsx src/pipeline/cli.ts enrich-techniques",
     "pipeline:images": "tsx src/pipeline/cli.ts images",
+    "pipeline:clean-images": "tsx src/pipeline/cli.ts clean-images",
     "pipeline:run": "tsx src/pipeline/cli.ts run",
     "validate-db": "tsx scripts/validate-db.ts",
     "check-incomplete": "tsx scripts/check-incomplete-patterns.ts",
