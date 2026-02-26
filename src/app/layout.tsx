@@ -127,8 +127,7 @@ export default function RootLayout({
                   reserved.
                 </p>
                 <p className="mt-1">
-                  Free fly tying pattern database. Some links are affiliate
-                  links.
+                  Free fly tying pattern database.
                 </p>
               </div>
             </div>

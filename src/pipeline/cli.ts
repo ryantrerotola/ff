@@ -1091,6 +1091,89 @@ waterType options: river, creek, lake, reservoir, pond, spring_creek, tailwater,
   }
 }
 
+// ─── COMMAND: buy-links ─────────────────────────────────────────────────
+
+/**
+ * Well-known fly tying retailers with search URL patterns.
+ * These generate direct search result links (not affiliate links).
+ */
+const FLY_TYING_RETAILERS: { name: string; searchUrl: (q: string) => string }[] = [
+  {
+    name: "J. Stockard",
+    searchUrl: (q) =>
+      `https://www.jsflyfishing.com/search?type=product&q=${encodeURIComponent(q)}`,
+  },
+  {
+    name: "Trident Fly Fishing",
+    searchUrl: (q) =>
+      `https://www.tridentflyfishing.com/search?q=${encodeURIComponent(q)}`,
+  },
+];
+
+async function cmdBuyLinks(args: string[]) {
+  const dryRun = args.includes("--dry-run");
+  const clearFirst = args.includes("--clear");
+
+  log.info("Generating buy links for materials");
+
+  if (clearFirst) {
+    if (!dryRun) {
+      const deleted = await prisma.affiliateLink.deleteMany({});
+      log.info(`Cleared ${deleted.count} existing buy links`);
+    } else {
+      log.info("Would clear existing buy links (dry run)");
+    }
+  }
+
+  // Get all materials
+  const materials = await prisma.material.findMany({
+    include: { affiliateLinks: { select: { id: true, retailer: true } } },
+    orderBy: { name: "asc" },
+  });
+
+  log.info(`Found ${materials.length} materials`);
+
+  let created = 0;
+  let skipped = 0;
+
+  for (const material of materials) {
+    // Build a good search query from the material name
+    // Strip parenthetical details like "(Medium)" for cleaner search
+    const searchName = material.name
+      .replace(/\s*\([^)]*\)\s*/g, " ")
+      .trim();
+
+    for (const retailer of FLY_TYING_RETAILERS) {
+      // Skip if this material already has a link to this retailer
+      if (material.affiliateLinks.some((l) => l.retailer === retailer.name)) {
+        skipped++;
+        continue;
+      }
+
+      const url = retailer.searchUrl(searchName);
+
+      if (dryRun) {
+        console.log(`  ${material.name} → ${retailer.name}: ${url}`);
+      } else {
+        await prisma.affiliateLink.create({
+          data: {
+            materialId: material.id,
+            retailer: retailer.name,
+            url,
+            commissionType: "flat",
+          },
+        });
+      }
+
+      created++;
+    }
+  }
+
+  log.success(
+    `Buy links: ${created} created, ${skipped} skipped (already existed)${dryRun ? " (dry run)" : ""}`
+  );
+}
+
 // ─── COMMAND: enrich-hatches ────────────────────────────────────────────
 
 async function cmdEnrichHatches(args: string[]) {
@@ -1939,6 +2022,9 @@ Commands:
   enrich-techniques [slugs...] [--dry-run] [--limit=N]
                                Use Claude to generate real steps, descriptions,
                                and key points for techniques with generic data
+  buy-links [--dry-run] [--clear]
+                               Generate buy links to fly tying retailers
+                               for every material in the database
   add-hatches <file|--inline>  Add hatch chart entries from JSON file or inline
   add-water-bodies <file|--inline>  Add water bodies from JSON
   import-water-bodies-csv <file>    Import water bodies from CSV file
@@ -2008,6 +2094,9 @@ Commands:
         break;
       case "enrich-techniques":
         await cmdEnrichTechniques(args);
+        break;
+      case "buy-links":
+        await cmdBuyLinks(args);
         break;
       case "add-hatches":
         await cmdAddHatches(args);
