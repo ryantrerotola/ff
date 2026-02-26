@@ -901,6 +901,30 @@ model WaterBody {
   @@map("water_bodies")
 }
 
+// ─── Fishing Reports ───────────────────────────────────────────────────────
+
+model FishingReport {
+  id            String   @id @default(uuid()) @db.Uuid
+  waterBody     String   @map("water_body")
+  region        String
+  state         String?
+  latitude      Float?
+  longitude     Float?
+  summary       String   @db.Text
+  conditions    String?  @db.Text
+  sourceUrls    String[] @map("source_urls")
+  sourceTitles  String[] @map("source_titles")
+  reportDate    DateTime @map("report_date")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([waterBody, region])
+  @@index([region])
+  @@index([state])
+  @@index([reportDate])
+  @@map("fishing_reports")
+}
+
 // ─── Rate Limiting ──────────────────────────────────────────────────────────
 
 model RateLimit {
