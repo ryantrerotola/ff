@@ -39,7 +39,7 @@ export interface SummarizedReport {
 // 1. "search" sites — have a search URL we can query with keywords
 // 2. "direct" pages — known URLs that always contain fishing reports
 //
-// The pipeline also uses Google/Bing web search to find reports from
+// The pipeline also uses Brave/Serper web search to find reports from
 // ANY site on the internet, not just these preconfigured ones.
 
 interface ReportSite {
@@ -587,7 +587,7 @@ async function fetchPage(url: string): Promise<string | null> {
 
 /**
  * Generic article scraper — extracts content from any web page.
- * Used for Google/Bing search results and direct report pages.
+ * Used for Brave/Serper search results and direct report pages.
  */
 function scrapeArticleContent(
   html: string,
@@ -793,11 +793,11 @@ async function scrapeFeedSources(): Promise<ScrapedReport[]> {
   return reports;
 }
 
-// ─── Google / Bing web search for broad discovery ───────────────────────────
+// ─── Brave / Serper web search for broad discovery ──────────────────────────
 // These find fishing reports from ANY site on the web, not just preconfigured ones.
 
-const GOOGLE_CSE_API = "https://www.googleapis.com/customsearch/v1";
-const BING_WEB_API = "https://api.bing.microsoft.com/v7.0/search";
+const BRAVE_WEB_API = "https://api.search.brave.com/res/v1/web/search";
+const SERPER_WEB_API = "https://google.serper.dev/search";
 
 /** URLs to skip — these are not fishing reports. */
 const SKIP_DOMAINS = [
@@ -824,82 +824,14 @@ function shouldSkipUrl(url: string): boolean {
 }
 
 /**
- * Search Google Custom Search for fishing report articles (web results, not images).
- * Requires GOOGLE_CSE_API_KEY and GOOGLE_CSE_ENGINE_ID env vars.
+ * Search Brave Web Search for fishing report articles.
+ * Requires BRAVE_SEARCH_API_KEY env var.
  */
-async function searchGoogleWeb(query: string): Promise<ScrapedReport[]> {
-  const apiKey = process.env.GOOGLE_CSE_API_KEY;
-  const engineId = process.env.GOOGLE_CSE_ENGINE_ID;
-
-  if (!apiKey || !engineId) {
-    log.info("Google CSE not configured — skipping Google web search");
-    return [];
-  }
-
-  await rateLimit();
-
-  const params = new URLSearchParams({
-    key: apiKey,
-    cx: engineId,
-    q: query,
-    num: "10",
-    dateRestrict: "m3", // Last 3 months only — we want recent reports
-  });
-
-  try {
-    const res = await retry(
-      () =>
-        fetch(`${GOOGLE_CSE_API}?${params}`, {
-          headers: { "User-Agent": PIPELINE_CONFIG.scraping.userAgent },
-          signal: AbortSignal.timeout(PIPELINE_CONFIG.scraping.timeoutMs),
-        }),
-      { maxRetries: 2, backoffMs: 2000, label: `google-web:${query}` }
-    );
-
-    if (!res.ok) {
-      log.warn(`Google CSE error: ${res.status}`, { query });
-      return [];
-    }
-
-    const data = (await res.json()) as {
-      items?: { link: string; title: string }[];
-    };
-
-    if (!data.items?.length) return [];
-
-    const reports: ScrapedReport[] = [];
-
-    // Scrape top results
-    for (const item of data.items.slice(0, 5)) {
-      if (shouldSkipUrl(item.link)) continue;
-
-      try {
-        const html = await fetchPage(item.link);
-        if (!html) continue;
-
-        const report = scrapeArticleContent(html, item.link, "Google Search");
-        if (report) reports.push(report);
-      } catch {
-        // Skip failed pages
-      }
-    }
-
-    return reports;
-  } catch (err) {
-    log.warn("Google web search failed", { error: String(err) });
-    return [];
-  }
-}
-
-/**
- * Search Bing Web Search for fishing report articles.
- * Requires BING_SEARCH_API_KEY env var.
- */
-async function searchBingWeb(query: string): Promise<ScrapedReport[]> {
-  const apiKey = process.env.BING_SEARCH_API_KEY;
+async function searchBraveWeb(query: string): Promise<ScrapedReport[]> {
+  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
 
   if (!apiKey) {
-    log.info("Bing API not configured — skipping Bing web search");
+    log.info("Brave Search not configured — skipping Brave web search");
     return [];
   }
 
@@ -908,44 +840,46 @@ async function searchBingWeb(query: string): Promise<ScrapedReport[]> {
   const params = new URLSearchParams({
     q: query,
     count: "10",
-    freshness: "Month", // Last month only
-    mkt: "en-US",
+    freshness: "pm", // Last month only — we want recent reports
+    country: "us",
   });
 
   try {
     const res = await retry(
       () =>
-        fetch(`${BING_WEB_API}?${params}`, {
+        fetch(`${BRAVE_WEB_API}?${params}`, {
           headers: {
-            "Ocp-Apim-Subscription-Key": apiKey,
-            "User-Agent": PIPELINE_CONFIG.scraping.userAgent,
+            "Accept": "application/json",
+            "Accept-Encoding": "gzip",
+            "X-Subscription-Token": apiKey,
           },
           signal: AbortSignal.timeout(PIPELINE_CONFIG.scraping.timeoutMs),
         }),
-      { maxRetries: 2, backoffMs: 2000, label: `bing-web:${query}` }
+      { maxRetries: 2, backoffMs: 2000, label: `brave-web:${query}` }
     );
 
     if (!res.ok) {
-      log.warn(`Bing API error: ${res.status}`, { query });
+      log.warn(`Brave Search error: ${res.status}`, { query });
       return [];
     }
 
     const data = (await res.json()) as {
-      webPages?: { value?: { url: string; name: string }[] };
+      web?: { results?: { url: string; title: string; description?: string }[] };
     };
 
-    if (!data.webPages?.value?.length) return [];
+    if (!data.web?.results?.length) return [];
 
     const reports: ScrapedReport[] = [];
 
-    for (const item of data.webPages.value.slice(0, 5)) {
+    // Scrape top results
+    for (const item of data.web.results.slice(0, 5)) {
       if (shouldSkipUrl(item.url)) continue;
 
       try {
         const html = await fetchPage(item.url);
         if (!html) continue;
 
-        const report = scrapeArticleContent(html, item.url, "Bing Search");
+        const report = scrapeArticleContent(html, item.url, "Brave Search");
         if (report) reports.push(report);
       } catch {
         // Skip failed pages
@@ -954,7 +888,75 @@ async function searchBingWeb(query: string): Promise<ScrapedReport[]> {
 
     return reports;
   } catch (err) {
-    log.warn("Bing web search failed", { error: String(err) });
+    log.warn("Brave web search failed", { error: String(err) });
+    return [];
+  }
+}
+
+/**
+ * Search Serper.dev (Google results) for fishing report articles.
+ * Requires SERPER_API_KEY env var. Fallback to Brave for broader coverage.
+ */
+async function searchSerperWeb(query: string): Promise<ScrapedReport[]> {
+  const apiKey = process.env.SERPER_API_KEY;
+
+  if (!apiKey) {
+    log.info("Serper not configured — skipping Serper web search");
+    return [];
+  }
+
+  await rateLimit();
+
+  try {
+    const res = await retry(
+      () =>
+        fetch(SERPER_WEB_API, {
+          method: "POST",
+          headers: {
+            "X-API-KEY": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            q: query,
+            num: 10,
+            tbs: "qdr:m", // Last month only
+            gl: "us",
+          }),
+          signal: AbortSignal.timeout(PIPELINE_CONFIG.scraping.timeoutMs),
+        }),
+      { maxRetries: 2, backoffMs: 2000, label: `serper-web:${query}` }
+    );
+
+    if (!res.ok) {
+      log.warn(`Serper API error: ${res.status}`, { query });
+      return [];
+    }
+
+    const data = (await res.json()) as {
+      organic?: { link: string; title: string; snippet?: string }[];
+    };
+
+    if (!data.organic?.length) return [];
+
+    const reports: ScrapedReport[] = [];
+
+    for (const item of data.organic.slice(0, 5)) {
+      if (shouldSkipUrl(item.link)) continue;
+
+      try {
+        const html = await fetchPage(item.link);
+        if (!html) continue;
+
+        const report = scrapeArticleContent(html, item.link, "Serper Search");
+        if (report) reports.push(report);
+      } catch {
+        // Skip failed pages
+      }
+    }
+
+    return reports;
+  } catch (err) {
+    log.warn("Serper web search failed", { error: String(err) });
     return [];
   }
 }
@@ -1033,8 +1035,8 @@ async function scrapeDirectReportPages(): Promise<ScrapedReport[]> {
 /**
  * Discover fishing reports using ALL available sources:
  * 1. Preconfigured report sites (search-based)
- * 2. Google web search (finds reports from any site)
- * 3. Bing web search (finds reports from any site)
+ * 2. Brave web search (finds reports from any site)
+ * 3. Serper web search (Google results, finds reports from any site)
  *
  * This is the primary entry point for the pipeline.
  */
@@ -1068,26 +1070,26 @@ export async function discoverFishingReports(
     }
   }
 
-  // 2. Google web search — finds reports from ANY site
+  // 2. Brave web search — finds reports from ANY site
   try {
-    const googleReports = await searchGoogleWeb(query);
-    addReports(googleReports);
-    if (googleReports.length > 0) {
-      log.info(`Found ${googleReports.length} reports from Google`, { query });
+    const braveReports = await searchBraveWeb(query);
+    addReports(braveReports);
+    if (braveReports.length > 0) {
+      log.info(`Found ${braveReports.length} reports from Brave`, { query });
     }
   } catch (err) {
-    log.warn("Google search failed", { error: String(err) });
+    log.warn("Brave search failed", { error: String(err) });
   }
 
-  // 3. Bing web search — additional coverage
+  // 3. Serper web search (Google results) — additional coverage
   try {
-    const bingReports = await searchBingWeb(query);
-    addReports(bingReports);
-    if (bingReports.length > 0) {
-      log.info(`Found ${bingReports.length} reports from Bing`, { query });
+    const serperReports = await searchSerperWeb(query);
+    addReports(serperReports);
+    if (serperReports.length > 0) {
+      log.info(`Found ${serperReports.length} reports from Serper`, { query });
     }
   } catch (err) {
-    log.warn("Bing search failed", { error: String(err) });
+    log.warn("Serper search failed", { error: String(err) });
   }
 
   return allReports;
