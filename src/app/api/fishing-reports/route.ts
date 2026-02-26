@@ -5,9 +5,13 @@ export async function GET(request: NextRequest) {
   const region = request.nextUrl.searchParams.get("region");
   const state = request.nextUrl.searchParams.get("state");
 
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
   const where: Record<string, unknown> = {
     latitude: { not: null },
     longitude: { not: null },
+    reportDate: { gte: thirtyDaysAgo },
   };
 
   if (region) where.region = { contains: region, mode: "insensitive" };
@@ -21,16 +25,17 @@ export async function GET(request: NextRequest) {
     })
   );
 
-  // Get distinct regions and states for filter dropdowns
+  // Get distinct regions and states for filter dropdowns (only from recent reports)
   const [regions, states] = await withRetry(() =>
     Promise.all([
       prisma.fishingReport.findMany({
+        where: { reportDate: { gte: thirtyDaysAgo } },
         select: { region: true },
         distinct: ["region"],
         orderBy: { region: "asc" },
       }),
       prisma.fishingReport.findMany({
-        where: { state: { not: null } },
+        where: { state: { not: null }, reportDate: { gte: thirtyDaysAgo } },
         select: { state: true },
         distinct: ["state"],
         orderBy: { state: "asc" },

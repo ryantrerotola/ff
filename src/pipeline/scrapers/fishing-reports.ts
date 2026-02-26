@@ -1128,10 +1128,11 @@ function getClient(): Anthropic {
 const SUMMARIZE_TOOL = {
   name: "save_fishing_report" as const,
   description:
-    "Save a summarized fishing report for a specific body of water.",
+    "Save a summarized fishing report for a specific body of water. Only call this for content that describes CURRENT fishing conditions on a specific body of water.",
   input_schema: {
     type: "object" as const,
     required: [
+      "isFishingReport",
       "waterBody",
       "region",
       "state",
@@ -1142,6 +1143,11 @@ const SUMMARIZE_TOOL = {
       "reportDate",
     ],
     properties: {
+      isFishingReport: {
+        type: "boolean" as const,
+        description:
+          "Set to true ONLY if the content is an actual fishing conditions report — describing how a specific water is currently fishing, what hatches are happening, what flies/patterns are working, water conditions, or recent catch reports. Set to false for: gear reviews, news articles, conservation/policy stories, technique tutorials, opinion pieces, shop promotions, fishing stories/memoirs, interviews, tournament results, or anything that does NOT describe current on-the-water conditions.",
+      },
       waterBody: {
         type: "string" as const,
         description:
@@ -1175,7 +1181,7 @@ const SUMMARIZE_TOOL = {
       summary: {
         type: "string" as const,
         description:
-          "A 2-4 sentence synthesis of the fishing report. Include: current fishing quality, what's working (flies, techniques), water conditions. Write in present tense as a current report.",
+          "A 2-4 sentence synthesis of CURRENT fishing conditions. Must include specifics: what flies/patterns are producing, what's hatching, how the fishing has been. Write in present tense. Do NOT include gear recommendations, policy discussion, or general advice.",
       },
       conditions: {
         type: "string" as const,
@@ -1185,7 +1191,7 @@ const SUMMARIZE_TOOL = {
       reportDate: {
         type: "string" as const,
         description:
-          "ISO date string for when the report was most recently relevant (use the article publish date or today if unclear)",
+          "ISO date string for when this report was published. Use the article's actual publish date. If the article has no clear date or appears older than 60 days, set isFishingReport to false.",
       },
     },
   },
@@ -1221,10 +1227,31 @@ export async function summarizeReports(
     const response = await client.messages.create({
       model: PIPELINE_CONFIG.anthropic.model,
       max_tokens: 1024,
-      system: `You are a fly fishing expert summarizing fishing reports. Your job is to:
-1. Identify the specific body of water being discussed
-2. Provide its precise name, state, region, coordinates, and water type
-3. Extract actionable intel for anglers: what's hatching, what flies are working, water conditions, and overall fishing quality
+      system: `You are a fly fishing expert that FILTERS and summarizes fishing reports.
+
+FIRST decide: is this a genuine, current fishing conditions report? Set isFishingReport accordingly.
+
+ACCEPT ONLY content that describes CURRENT conditions on a specific body of water:
+- Water levels, flows, temperature, clarity
+- What hatches are active right now (specific bugs: BWOs, PMDs, caddis, etc.)
+- What fly patterns are producing (specific patterns: #18 Parachute Adams, size 20 RS2, etc.)
+- Recent catch reports with specifics about what worked
+- Guide reports describing current fishing quality
+
+REJECT (set isFishingReport=false) content that is:
+- Gear reviews, product recommendations, rod/reel/wader articles
+- Conservation news, regulations, policy changes, stocking reports
+- Technique tutorials or "how-to" articles
+- Opinion pieces, fishing stories, personal narratives
+- Shop promotions, event announcements, tournament results
+- Interviews without current water conditions
+- General articles that mention a river but don't describe current fishing
+
+If accepted, extract:
+1. The specific body of water
+2. Current conditions: what's hatching, what flies are working, water conditions, fishing quality
+3. Precise name, state, region, coordinates, water type
+
 Be concise and practical. Always provide latitude, longitude, and state — use your knowledge of US geography. ${waterContext}`,
       tools: [SUMMARIZE_TOOL],
       tool_choice: { type: "tool" as const, name: "save_fishing_report" },
@@ -1240,6 +1267,7 @@ Be concise and practical. Always provide latitude, longitude, and state — use 
     if (!toolUse || toolUse.type !== "tool_use") return null;
 
     const data = toolUse.input as {
+      isFishingReport: boolean;
       waterBody: string;
       region: string;
       state?: string;
@@ -1250,6 +1278,11 @@ Be concise and practical. Always provide latitude, longitude, and state — use 
       conditions?: string;
       reportDate: string;
     };
+
+    if (!data.isFishingReport) {
+      log.warn(`  Rejected (not a fishing report): ${reports[0]?.title ?? "unknown"}`);
+      return null;
+    }
 
     return {
       waterBody: waterBody?.name ?? data.waterBody,

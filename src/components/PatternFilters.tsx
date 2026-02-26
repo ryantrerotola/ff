@@ -95,7 +95,7 @@ function FilterSelect({ label, value, options, onChange }: FilterSelectProps) {
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
       >
-        <option value="">All {label}s</option>
+        <option value="">All {label.endsWith("y") ? label.slice(0, -1) + "ies" : label + "s"}</option>
         {Object.entries(options).map(([key, displayLabel]) => (
           <option key={key} value={key}>
             {displayLabel}
