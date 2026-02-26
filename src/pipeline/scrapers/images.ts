@@ -638,8 +638,8 @@ async function downloadImageAsBase64(
 }
 
 /**
- * Use Claude vision to verify an image is actually a fly pattern photo.
- * Returns true only if the image clearly shows a tied fly fishing fly.
+ * Use Claude vision to verify an image matches a SPECIFIC fly pattern.
+ * Returns true only if the image clearly shows the named pattern (not just any fly).
  * Uses Haiku for speed and cost efficiency.
  */
 export async function validateImageWithVision(
@@ -654,7 +654,7 @@ export async function validateImageWithVision(
   try {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 50,
+      max_tokens: 100,
       messages: [
         {
           role: "user",
@@ -669,7 +669,7 @@ export async function validateImageWithVision(
             },
             {
               type: "text",
-              text: `Is this a photo of a tied fly fishing fly (a "${patternName}" or similar fly pattern on a hook)? Answer ONLY "yes" or "no".`,
+              text: `Does this image show a "${patternName}" fly pattern specifically? Consider the fly's shape, colors, materials, and style. A "${patternName}" should look distinctly like that pattern, not just any fly on a hook. Answer ONLY "yes" or "no".`,
             },
           ],
         },
