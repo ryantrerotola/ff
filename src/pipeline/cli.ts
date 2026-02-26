@@ -17,12 +17,11 @@ import { scrapeNews } from "./scrapers/news";
 import { discoverTechniqueVideos } from "./scrapers/techniques";
 import { discoverPatternImages, isPlaceholderImage, validateImageWithVision } from "./scrapers/images";
 import {
-  discoverReportsForWater,
   discoverFishingReports,
   summarizeReports,
   GENERAL_REPORT_QUERIES,
 } from "./scrapers/fishing-reports";
-import type { ScrapedReport } from "./scrapers/fishing-reports";
+import type { SummarizedReport } from "./scrapers/fishing-reports";
 
 import {
   createStagedSource,
@@ -1186,184 +1185,193 @@ async function cmdBuyLinks(args: string[]) {
 async function cmdFishingReports(args: string[]) {
   const dryRun = args.includes("--dry-run");
   const limitArg = args.find((a) => a.startsWith("--limit="));
-  const limit = limitArg ? parseInt(limitArg.split("=")[1]!, 10) : 30;
-  const slugFilters = args.filter((a) => !a.startsWith("--"));
+  const queryLimit = limitArg ? parseInt(limitArg.split("=")[1]!, 10) : GENERAL_REPORT_QUERIES.length;
 
-  log.info("Discovering and summarizing fishing reports");
+  log.info(
+    `Discovering fishing reports using ${Math.min(queryLimit, GENERAL_REPORT_QUERIES.length)} search queries (report-first discovery)`
+  );
 
-  // Step 1: Gather water bodies to search for
-  const waterBodies = slugFilters.length > 0
-    ? await prisma.waterBody.findMany({
-        where: { slug: { in: slugFilters } },
-      })
-    : await prisma.waterBody.findMany({
-        orderBy: [{ region: "asc" }, { name: "asc" }],
-        take: limit,
-      });
-
-  log.info(`Processing ${waterBodies.length} water bodies`);
-
-  if (waterBodies.length === 0) {
-    log.warn("No water bodies found. Add water bodies first.");
-    return;
-  }
-
+  const queries = GENERAL_REPORT_QUERIES.slice(0, queryLimit);
   let created = 0;
   let updated = 0;
   let failed = 0;
+  let waterBodiesCreated = 0;
 
-  for (let i = 0; i < waterBodies.length; i++) {
-    const wb = waterBodies[i]!;
-    console.log(progressBar(i + 1, waterBodies.length, wb.name));
+  // Deduplicate across queries: track URLs we've already scraped
+  const seenUrls = new Set<string>();
+
+  for (let qi = 0; qi < queries.length; qi++) {
+    const query = queries[qi]!;
+    console.log(progressBar(qi + 1, queries.length, query));
 
     try {
-      // Discover reports for this water body
-      const reports = await discoverReportsForWater(wb.name, wb.state);
-
+      const reports = await discoverFishingReports(query);
       if (reports.length === 0) {
-        log.info(`  No reports found for ${wb.name}`);
-        failed++;
+        log.info(`  No reports found for query: "${query}"`);
         continue;
       }
 
-      log.info(`  Found ${reports.length} reports for ${wb.name}`);
+      // Deduplicate by URL
+      const newReports = reports.filter((r) => !seenUrls.has(r.url));
+      for (const r of reports) seenUrls.add(r.url);
 
-      // Summarize with Claude
-      const summary = await summarizeReports(reports, {
-        name: wb.name,
-        state: wb.state,
-        latitude: wb.latitude,
-        longitude: wb.longitude,
-      });
-
-      if (!summary) {
-        log.warn(`  Failed to summarize reports for ${wb.name}`);
-        failed++;
+      if (newReports.length === 0) {
+        log.info(`  All ${reports.length} reports already processed`);
         continue;
       }
 
-      if (dryRun) {
-        console.log(`\n  ${wb.name}: ${summary.summary.slice(0, 120)}...`);
-        continue;
-      }
+      log.info(
+        `  Found ${newReports.length} new reports (${reports.length - newReports.length} dupes skipped)`
+      );
 
-      // Upsert into database
-      const existing = await prisma.fishingReport.findUnique({
-        where: {
-          waterBody_region: {
-            waterBody: wb.name,
-            region: summary.region || wb.region,
-          },
-        },
-      });
+      // Summarize each report individually — Claude identifies the water body
+      for (const report of newReports) {
+        try {
+          const summary = await summarizeReports([report]);
+          if (!summary) {
+            log.warn(`  Could not summarize: ${report.title}`);
+            failed++;
+            continue;
+          }
 
-      if (existing) {
-        await prisma.fishingReport.update({
-          where: { id: existing.id },
-          data: {
-            summary: summary.summary,
-            conditions: summary.conditions,
-            sourceUrls: summary.sourceUrls,
-            sourceTitles: summary.sourceTitles,
-            latitude: summary.latitude ?? wb.latitude,
-            longitude: summary.longitude ?? wb.longitude,
-            state: summary.state ?? wb.state,
-            reportDate: new Date(summary.reportDate),
-          },
-        });
-        updated++;
-        log.info(`  Updated report for ${wb.name}`);
-      } else {
-        await prisma.fishingReport.create({
-          data: {
-            waterBody: wb.name,
-            region: summary.region || wb.region,
-            state: summary.state ?? wb.state,
-            latitude: summary.latitude ?? wb.latitude,
-            longitude: summary.longitude ?? wb.longitude,
-            summary: summary.summary,
-            conditions: summary.conditions,
-            sourceUrls: summary.sourceUrls,
-            sourceTitles: summary.sourceTitles,
-            reportDate: new Date(summary.reportDate),
-          },
-        });
-        created++;
-        log.info(`  Created report for ${wb.name}`);
+          // Skip reports without coordinates (can't show on map)
+          if (!summary.latitude || !summary.longitude) {
+            log.warn(
+              `  No coordinates for ${summary.waterBody} — skipping`
+            );
+            failed++;
+            continue;
+          }
+
+          if (dryRun) {
+            console.log(
+              `\n  [${summary.waterBody}, ${summary.state ?? "?"}] ${summary.summary.slice(0, 100)}...`
+            );
+            continue;
+          }
+
+          // Upsert the fishing report
+          const upsertResult = await upsertFishingReport(summary);
+          if (upsertResult === "created") created++;
+          else updated++;
+
+          // Auto-create WaterBody record if it doesn't exist
+          const wbCreated = await ensureWaterBody(summary);
+          if (wbCreated) waterBodiesCreated++;
+        } catch (err) {
+          log.error(`  Failed to process report: ${report.title}`, {
+            error: String(err),
+          });
+          failed++;
+        }
       }
     } catch (err) {
-      log.error(`Failed for ${wb.name}`, { error: String(err) });
-      failed++;
-    }
-  }
-
-  // Step 2: Also run general fishing report queries to catch waters
-  // we don't have in our water_bodies table
-  if (slugFilters.length === 0) {
-    log.info("Running general fishing report discovery...");
-
-    for (const query of GENERAL_REPORT_QUERIES.slice(0, 3)) {
-      try {
-        const reports = await discoverFishingReports(query);
-        if (reports.length === 0) continue;
-
-        // Group reports that seem to be about the same water
-        // and summarize each group
-        const grouped = groupReportsByContent(reports);
-
-        for (const group of grouped) {
-          const summary = await summarizeReports(group);
-          if (!summary || !summary.latitude || !summary.longitude) continue;
-
-          // Check if we already have a report for this water body
-          const existing = await prisma.fishingReport.findUnique({
-            where: {
-              waterBody_region: {
-                waterBody: summary.waterBody,
-                region: summary.region,
-              },
-            },
-          });
-
-          if (existing) continue; // Don't overwrite water-body-specific reports
-
-          if (!dryRun) {
-            await prisma.fishingReport.create({
-              data: {
-                waterBody: summary.waterBody,
-                region: summary.region,
-                state: summary.state,
-                latitude: summary.latitude,
-                longitude: summary.longitude,
-                summary: summary.summary,
-                conditions: summary.conditions,
-                sourceUrls: summary.sourceUrls,
-                sourceTitles: summary.sourceTitles,
-                reportDate: new Date(summary.reportDate),
-              },
-            });
-            created++;
-          }
-        }
-      } catch (err) {
-        log.warn(`General query failed`, { error: String(err) });
-      }
+      log.warn(`Query failed: "${query}"`, { error: String(err) });
     }
   }
 
   log.success(
-    `Fishing reports: ${created} created, ${updated} updated, ${failed} failed${dryRun ? " (dry run)" : ""}`
+    `Fishing reports: ${created} created, ${updated} updated, ${failed} failed, ${waterBodiesCreated} water bodies auto-created${dryRun ? " (dry run)" : ""}`
   );
 }
 
 /**
- * Simple grouping: each report is treated as its own group since they come
- * from different search results. In the future this could cluster by
- * water body name similarity.
+ * Upsert a fishing report — update if exists for this water body + region,
+ * create if new.
  */
-function groupReportsByContent(reports: ScrapedReport[]): ScrapedReport[][] {
-  // For now, treat each report individually — Claude will identify the water body
-  return reports.map((r) => [r]);
+async function upsertFishingReport(
+  summary: SummarizedReport
+): Promise<"created" | "updated"> {
+  const existing = await prisma.fishingReport.findUnique({
+    where: {
+      waterBody_region: {
+        waterBody: summary.waterBody,
+        region: summary.region,
+      },
+    },
+  });
+
+  if (existing) {
+    await prisma.fishingReport.update({
+      where: { id: existing.id },
+      data: {
+        summary: summary.summary,
+        conditions: summary.conditions,
+        sourceUrls: summary.sourceUrls,
+        sourceTitles: summary.sourceTitles,
+        latitude: summary.latitude,
+        longitude: summary.longitude,
+        state: summary.state,
+        reportDate: new Date(summary.reportDate),
+      },
+    });
+    log.info(`  Updated report for ${summary.waterBody}`);
+    return "updated";
+  }
+
+  await prisma.fishingReport.create({
+    data: {
+      waterBody: summary.waterBody,
+      region: summary.region,
+      state: summary.state,
+      latitude: summary.latitude,
+      longitude: summary.longitude,
+      summary: summary.summary,
+      conditions: summary.conditions,
+      sourceUrls: summary.sourceUrls,
+      sourceTitles: summary.sourceTitles,
+      reportDate: new Date(summary.reportDate),
+    },
+  });
+  log.info(`  Created report for ${summary.waterBody}`);
+  return "created";
+}
+
+/**
+ * Auto-create a WaterBody record from a summarized report if one doesn't
+ * already exist. This makes the pipeline fully autonomous — no manual
+ * water body seeding required.
+ */
+async function ensureWaterBody(
+  summary: SummarizedReport
+): Promise<boolean> {
+  const waterSlug = slugify(
+    summary.state
+      ? `${summary.waterBody} ${summary.state}`
+      : summary.waterBody
+  );
+
+  const existing = await prisma.waterBody.findUnique({
+    where: { slug: waterSlug },
+  });
+
+  if (existing) return false;
+
+  // Also check by name+region to avoid duplicates with different slug patterns
+  const existingByName = await prisma.waterBody.findUnique({
+    where: {
+      name_region: {
+        name: summary.waterBody,
+        region: summary.region,
+      },
+    },
+  });
+
+  if (existingByName) return false;
+
+  await prisma.waterBody.create({
+    data: {
+      name: summary.waterBody,
+      slug: waterSlug,
+      state: summary.state,
+      region: summary.region,
+      latitude: summary.latitude,
+      longitude: summary.longitude,
+      waterType: summary.waterType,
+    },
+  });
+  log.info(`  Auto-created water body: ${summary.waterBody} (${waterSlug})`);
+  return true;
 }
 
 // ─── COMMAND: enrich-hatches ────────────────────────────────────────────
@@ -2217,9 +2225,12 @@ Commands:
   buy-links [--dry-run] [--clear]
                                Generate buy links to fly tying retailers
                                for every material in the database
-  fishing-reports [slugs...] [--dry-run] [--limit=N]
-                               Discover, scrape, and summarize fishing reports
-                               for water bodies. Creates map-ready report data.
+  fishing-reports [--dry-run] [--limit=N]
+                               Discover fishing reports from the web, extract
+                               water body data, and auto-create both reports
+                               and water body records. No manual input needed.
+                               --limit=N controls how many search queries to run
+                               (default: all ${GENERAL_REPORT_QUERIES.length} queries)
   add-hatches <file|--inline>  Add hatch chart entries from JSON file or inline
   add-water-bodies <file|--inline>  Add water bodies from JSON
   import-water-bodies-csv <file>    Import water bodies from CSV file

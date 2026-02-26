@@ -23,6 +23,7 @@ export interface SummarizedReport {
   state: string | null;
   latitude: number | null;
   longitude: number | null;
+  waterType: string;
   summary: string;
   conditions: string | null;
   reportDate: string;
@@ -64,15 +65,46 @@ const REPORT_SITES: ReportSite[] = [
 ];
 
 // ─── General search queries for broad fishing report discovery ──────────────
+// These queries are the PRIMARY mechanism for discovering reports.
+// The pipeline searches broadly and lets Claude identify the water bodies.
 
 export const GENERAL_REPORT_QUERIES = [
-  "fly fishing report this week",
-  "trout fishing conditions report",
-  "fly fishing river conditions update",
-  "western fly fishing report",
-  "northeast fly fishing report",
-  "tailwater fishing conditions",
-  "spring creek fishing report",
+  // Regional
+  "western fly fishing report this week",
+  "northeast fly fishing report this week",
+  "southeast fly fishing report this week",
+  "midwest fly fishing report this week",
+  "pacific northwest fly fishing report",
+  "rocky mountain fishing conditions",
+  // State-specific (major fly fishing states)
+  "Colorado fly fishing report",
+  "Montana fly fishing report",
+  "Idaho fly fishing report",
+  "Wyoming fly fishing report",
+  "Oregon fly fishing report",
+  "Washington fly fishing report",
+  "Pennsylvania fly fishing report",
+  "New York fly fishing report",
+  "North Carolina fly fishing report",
+  "Virginia fly fishing report",
+  "Michigan fly fishing report",
+  "Wisconsin fly fishing report",
+  "Arkansas fly fishing report",
+  "New Mexico fly fishing report",
+  "Utah fly fishing report",
+  "California fly fishing report",
+  "Vermont fly fishing report",
+  "Alaska fly fishing report",
+  // Water type
+  "tailwater fishing conditions report",
+  "spring creek fly fishing report",
+  "freestone river fishing report",
+  "trout stream conditions update",
+  // Species
+  "trout fishing conditions this week",
+  "steelhead fishing report",
+  "salmon fly fishing report",
+  "smallmouth bass fly fishing report",
 ];
 
 // ─── Scraping ───────────────────────────────────────────────────────────────
@@ -230,30 +262,43 @@ const SUMMARIZE_TOOL = {
     required: [
       "waterBody",
       "region",
+      "state",
+      "latitude",
+      "longitude",
+      "waterType",
       "summary",
       "reportDate",
     ],
     properties: {
       waterBody: {
         type: "string" as const,
-        description: "Name of the body of water (e.g., 'South Platte River')",
+        description:
+          "Official or commonly-used name of the body of water (e.g., 'South Platte River', 'Henry's Fork', 'White River'). Use the most widely recognized name.",
       },
       region: {
         type: "string" as const,
         description:
-          "Geographic region (e.g., 'Rocky Mountains', 'Northeast', 'Pacific Northwest', 'Mid-South', 'Great Lakes', 'Saltwater')",
+          "Geographic region. Must be one of: 'Rocky Mountains', 'Northeast', 'Southeast', 'Midwest', 'Pacific Northwest', 'Southwest', 'Mid-Atlantic', 'Great Lakes', 'Alaska', 'Saltwater'",
       },
       state: {
         type: "string" as const,
-        description: "Two-letter US state abbreviation (e.g., 'CO')",
+        description:
+          "Two-letter US state abbreviation (e.g., 'CO'). Required — determine from context.",
       },
       latitude: {
         type: "number" as const,
-        description: "Approximate latitude of the water body",
+        description:
+          "Approximate latitude of the water body. You must provide this — use your knowledge of US geography.",
       },
       longitude: {
         type: "number" as const,
-        description: "Approximate longitude of the water body",
+        description:
+          "Approximate longitude of the water body. You must provide this — use your knowledge of US geography.",
+      },
+      waterType: {
+        type: "string" as const,
+        description:
+          "Type of water body. One of: 'river', 'creek', 'spring creek', 'tailwater', 'lake', 'reservoir', 'stream', 'saltwater'",
       },
       summary: {
         type: "string" as const,
@@ -298,13 +343,17 @@ export async function summarizeReports(
           ? `Known coordinates: ${waterBody.latitude}, ${waterBody.longitude}.`
           : "Estimate the latitude/longitude if you know the location."
       }`
-    : "Identify the primary body of water these reports are about and provide its details.";
+    : "Identify the primary body of water discussed in these reports. Provide its full name, state, coordinates, and water type. Use your geographical knowledge to fill in any missing details.";
 
   try {
     const response = await client.messages.create({
       model: PIPELINE_CONFIG.anthropic.model,
       max_tokens: 1024,
-      system: `You are a fly fishing expert summarizing fishing reports. Extract actionable intel for anglers: what's hatching, what flies are working, water conditions, and overall fishing quality. Be concise and practical. ${waterContext}`,
+      system: `You are a fly fishing expert summarizing fishing reports. Your job is to:
+1. Identify the specific body of water being discussed
+2. Provide its precise name, state, region, coordinates, and water type
+3. Extract actionable intel for anglers: what's hatching, what flies are working, water conditions, and overall fishing quality
+Be concise and practical. Always provide latitude, longitude, and state — use your knowledge of US geography. ${waterContext}`,
       tools: [SUMMARIZE_TOOL],
       tool_choice: { type: "tool" as const, name: "save_fishing_report" },
       messages: [
@@ -324,6 +373,7 @@ export async function summarizeReports(
       state?: string;
       latitude?: number;
       longitude?: number;
+      waterType?: string;
       summary: string;
       conditions?: string;
       reportDate: string;
@@ -335,6 +385,7 @@ export async function summarizeReports(
       state: data.state ?? waterBody?.state ?? null,
       latitude: waterBody?.latitude ?? data.latitude ?? null,
       longitude: waterBody?.longitude ?? data.longitude ?? null,
+      waterType: data.waterType ?? "river",
       summary: data.summary,
       conditions: data.conditions ?? null,
       reportDate: data.reportDate,
