@@ -98,6 +98,12 @@ export default function RootLayout({
                   Hatch Chart
                 </Link>
                 <Link
+                  href="/reports"
+                  className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                >
+                  Reports
+                </Link>
+                <Link
                   href="/learn"
                   className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                 >
