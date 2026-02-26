@@ -106,7 +106,14 @@ const REPORT_SITES: ReportSite[] = [
     contentSelector: "article, .entry-content, .post-content, .page-content",
     dateSelector: "time, .entry-date, .post-date",
   },
-  // ─── Fly shops ───────────────────────────────────────────────────────
+  {
+    name: "BlogFlyFish",
+    searchUrl: (q) =>
+      `https://blogflyfish.com/?s=${encodeURIComponent(q + " fishing report")}`,
+    contentSelector: "article, .entry-content, .post-content",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  // ─── Fly shops (WordPress search) ────────────────────────────────────
   {
     name: "Trout's Fly Fishing (CO)",
     searchUrl: (q) =>
@@ -129,10 +136,17 @@ const REPORT_SITES: ReportSite[] = [
     dateSelector: "time, .entry-date, .post-date, .date",
   },
   {
-    name: "The Fly Shop (CA)",
+    name: "Angler's Covey (CO)",
     searchUrl: (q) =>
-      `https://www.theflyshop.com/?s=${encodeURIComponent(q + " fishing report")}`,
-    contentSelector: "article, .entry-content, .post-content, .page-content",
+      `https://anglerscovey.com/?s=${encodeURIComponent(q + " fishing report")}`,
+    contentSelector: "article, .entry-content, .post-content",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  {
+    name: "RIGS Fly Shop (CO)",
+    searchUrl: (q) =>
+      `https://fishrigs.com/?s=${encodeURIComponent(q + " fishing report")}`,
+    contentSelector: "article, .entry-content, .post-content",
     dateSelector: "time, .entry-date, .post-date",
   },
   {
@@ -171,9 +185,9 @@ const REPORT_SITES: ReportSite[] = [
     dateSelector: "time, .entry-date, .post-date",
   },
   {
-    name: "North Fork Ranch Guide Service (CO)",
+    name: "Colorado Trout Hunters",
     searchUrl: (q) =>
-      `https://www.northforkranch.com/?s=${encodeURIComponent(q + " report")}`,
+      `https://coloradotrouthunters.com/?s=${encodeURIComponent(q + " fishing report")}`,
     contentSelector: "article, .entry-content, .post-content",
     dateSelector: "time, .entry-date, .post-date",
   },
@@ -199,6 +213,94 @@ const REPORT_SITES: ReportSite[] = [
     contentSelector: "article, .entry-content, .post-content",
     dateSelector: "time, .entry-date, .post-date",
   },
+  {
+    name: "Montana Outdoor",
+    searchUrl: (q) =>
+      `https://www.montanaoutdoor.com/?s=${encodeURIComponent(q + " fishing report")}`,
+    contentSelector: "article, .entry-content, .post-content",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  {
+    name: "The Caddis Fly (OR)",
+    searchUrl: (q) =>
+      `https://oregonflyfishingblog.com/?s=${encodeURIComponent(q + " fishing report")}`,
+    contentSelector: "article, .entry-content, .post-content",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+];
+
+/**
+ * RSS/Atom feed sources — the most reliable scraping method.
+ * Many fly shops (especially Shopify) and WordPress blogs auto-generate feeds.
+ * We scrape the feed, then fetch full article content from each entry.
+ */
+interface FeedSource {
+  name: string;
+  feedUrl: string;
+  siteUrl: string;
+  contentSelector: string;
+  dateSelector: string;
+}
+
+const FEED_SOURCES: FeedSource[] = [
+  // ─── Shopify fly shops (Atom feeds) ──────────────────────────────────
+  {
+    name: "Murray's Fly Shop (VA)",
+    feedUrl: "https://www.murraysflyshop.com/blogs/fishing-report.atom",
+    siteUrl: "https://www.murraysflyshop.com",
+    contentSelector: "article, .article__body, .rte, .shopify-section, main",
+    dateSelector: "time[datetime], .article__date",
+  },
+  {
+    name: "Red's Fly Shop (WA)",
+    feedUrl: "https://redsflyfishing.com/blogs/yakima-river-fishing-report.atom",
+    siteUrl: "https://redsflyfishing.com",
+    contentSelector: "article, .article__body, .rte, .shopify-section, main",
+    dateSelector: "time[datetime], .article__date",
+  },
+  {
+    name: "Lost Coast Outfitters (CA)",
+    feedUrl: "https://www.lostcoastoutfitters.com/blogs/fishing-report.atom",
+    siteUrl: "https://www.lostcoastoutfitters.com",
+    contentSelector: "article, .article__body, .rte, .shopify-section, main",
+    dateSelector: "time[datetime], .article__date",
+  },
+  {
+    name: "Fly and Field Outfitters (OR)",
+    feedUrl: "https://www.flyandfield.com/blogs/fishing-reports.atom",
+    siteUrl: "https://www.flyandfield.com",
+    contentSelector: "article, .article__body, .rte, .shopify-section, main",
+    dateSelector: "time[datetime], .article__date",
+  },
+  {
+    name: "TCO Fly Shop (PA)",
+    feedUrl: "https://tcoflyfishing.com/blogs/fishing-reports.atom",
+    siteUrl: "https://tcoflyfishing.com",
+    contentSelector: "article, .article__body, .rte, .shopify-section, main",
+    dateSelector: "time[datetime], .article__date",
+  },
+  // ─── WordPress blogs (RSS feeds) ────────────────────────────────────
+  {
+    name: "Montana Outdoor",
+    feedUrl: "https://www.montanaoutdoor.com/feed/",
+    siteUrl: "https://www.montanaoutdoor.com",
+    contentSelector: "article, .entry-content, .post-content",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  {
+    name: "The Caddis Fly (OR)",
+    feedUrl: "https://oregonflyfishingblog.com/feed/",
+    siteUrl: "https://oregonflyfishingblog.com",
+    contentSelector: "article, .entry-content, .post-content",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  {
+    name: "BlogFlyFish",
+    feedUrl: "https://blogflyfish.com/feed/",
+    siteUrl: "https://blogflyfish.com",
+    contentSelector: "article, .entry-content, .post-content",
+    dateSelector: "time, .entry-date, .post-date",
+  },
 ];
 
 /**
@@ -216,20 +318,26 @@ interface DirectReportPage {
 const DIRECT_REPORT_PAGES: DirectReportPage[] = [
   // ─── Fly shops with dedicated report pages ───────────────────────────
   {
-    name: "Trout's Fly Fishing",
+    name: "Trout's Fly Fishing (CO)",
     url: "https://www.troutsflyfishing.com/fishing-reports",
     contentSelector: "article, .entry-content, .post-content, .blog-list, main",
     dateSelector: "time, .entry-date, .post-date, .date",
   },
   {
-    name: "Blue Quill Angler",
+    name: "Blue Quill Angler (CO)",
     url: "https://bluequillangler.com/fishing-reports/",
     contentSelector: "article, .entry-content, .post-content, main",
     dateSelector: "time, .entry-date, .post-date",
   },
   {
-    name: "Vail Valley Anglers",
+    name: "Vail Valley Anglers (CO)",
     url: "https://www.vailvalleyanglers.com/fishing-reports",
+    contentSelector: "article, .entry-content, .post-content, main",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  {
+    name: "Angler's Covey (CO)",
+    url: "https://anglerscovey.com/fishing-reports/",
     contentSelector: "article, .entry-content, .post-content, main",
     dateSelector: "time, .entry-date, .post-date",
   },
@@ -238,6 +346,18 @@ const DIRECT_REPORT_PAGES: DirectReportPage[] = [
     url: "https://www.arkansasriverflyfishing.com/fishing-report",
     contentSelector: "article, .entry-content, .post-content, .page-content, main",
     dateSelector: "time, .entry-date, .post-date, .date",
+  },
+  {
+    name: "RIGS Fly Shop (CO)",
+    url: "https://fishrigs.com/fish-report/",
+    contentSelector: "article, .entry-content, .post-content, main",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  {
+    name: "Dragonfly Anglers (CO)",
+    url: "https://dragonflyanglers.com/fishing-report/",
+    contentSelector: "article, .entry-content, .post-content, main",
+    dateSelector: "time, .entry-date, .post-date",
   },
   {
     name: "Headhunters Fly Shop (MT)",
@@ -254,6 +374,30 @@ const DIRECT_REPORT_PAGES: DirectReportPage[] = [
   {
     name: "Madison River Fishing Company (MT)",
     url: "https://www.mrfc.com/madison-river-fishing-report/",
+    contentSelector: "article, .entry-content, .post-content, main",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  {
+    name: "The River's Edge (MT)",
+    url: "https://theriversedge.com/pages/montana-fishing-reports",
+    contentSelector: "article, .page-content, .rte, .shopify-section, main",
+    dateSelector: "time[datetime], .article__date",
+  },
+  {
+    name: "The Tackle Shop (MT)",
+    url: "https://www.thetackleshop.com/montana-fly-fishing-reports/",
+    contentSelector: "article, .entry-content, .post-content, main",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  {
+    name: "Montana Troutfitters (MT)",
+    url: "https://troutfitters.com/river-reports",
+    contentSelector: "article, .entry-content, .post-content, main",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  {
+    name: "Fins & Feathers (MT)",
+    url: "https://flyfishingbozeman.com/montana-fishing-reports",
     contentSelector: "article, .entry-content, .post-content, main",
     dateSelector: "time, .entry-date, .post-date",
   },
@@ -276,14 +420,51 @@ const DIRECT_REPORT_PAGES: DirectReportPage[] = [
     dateSelector: "time, .entry-date, .post-date",
   },
   {
-    name: "TCO Fly Shop (PA)",
-    url: "https://tcoflyfishing.com/blogs/fishing-reports",
-    contentSelector: "article, .entry-content, .post-content, .blog-content, main",
+    name: "Deschutes Angler (OR)",
+    url: "https://www.deschutesangler.com/fishing-report",
+    contentSelector: "article, .entry-content, .post-content, main",
     dateSelector: "time, .entry-date, .post-date",
   },
   {
-    name: "Deschutes Angler (OR)",
-    url: "https://www.deschutesangler.com/fishing-report",
+    name: "House of Fly (ID/MT)",
+    url: "https://houseoffly.com/house-of-fly-fishing-reports",
+    contentSelector: "article, .entry-content, .post-content, main",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  {
+    name: "Trout Town Flies (NY)",
+    url: "https://trouttownflies.com/reports/",
+    contentSelector: "article, .entry-content, .post-content, .report-content, main",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  {
+    name: "High Desert Angler (NM)",
+    url: "https://www.highdesertangler.com/stream-report",
+    contentSelector: "article, .blog-item, .entry-body, .sqs-block-content, main",
+    dateSelector: "time, .blog-date, .entry-date",
+  },
+  {
+    name: "Pat Dorsey Fly Fishing (CO)",
+    url: "https://www.patdorseyflyfishing.com/rivers/",
+    contentSelector: "article, .entry-content, .post-content, .river-report, main",
+    dateSelector: "time, .entry-date, .post-date",
+  },
+  // ─── Guide services ──────────────────────────────────────────────────
+  {
+    name: "Spinner Fall Guide Service (UT)",
+    url: "https://www.spinnerfall.com/green-river-fly-fishing-report",
+    contentSelector: "article, .entry-content, .post-body, .sqs-block-content, main",
+    dateSelector: "time, .blog-date, .entry-date",
+  },
+  {
+    name: "Rise Beyond Fly Fishing (CO)",
+    url: "https://risebeyondflyfishing.com/blog/tag/river-report",
+    contentSelector: "article, .blog-item, .blog-content, .entry-content, main",
+    dateSelector: "time, .blog-date, .entry-date",
+  },
+  {
+    name: "Montana Angler",
+    url: "https://www.montanaangler.com/montana-fishing-reports",
     contentSelector: "article, .entry-content, .post-content, main",
     dateSelector: "time, .entry-date, .post-date",
   },
@@ -304,6 +485,30 @@ const DIRECT_REPORT_PAGES: DirectReportPage[] = [
     name: "Idaho Fish & Game",
     url: "https://idfg.idaho.gov/fish/reports",
     contentSelector: ".page-content, .main-content, article, main, #content",
+    dateSelector: "time, .date, .updated",
+  },
+  {
+    name: "Oregon DFW Fishing Report",
+    url: "https://myodfw.com/recreation-report/fishing-report",
+    contentSelector: ".field-content, .views-row, article, .node-content, main",
+    dateSelector: "time, .date, .updated",
+  },
+  {
+    name: "Washington DFW Fishing Reports",
+    url: "https://wdfw.wa.gov/fishing/reports",
+    contentSelector: ".views-row, article, .field-content, .region-report, main",
+    dateSelector: "time, .date, .updated",
+  },
+  {
+    name: "Wyoming Game & Fish",
+    url: "https://wgfd.wyo.gov/fishing-and-boating/fishing-reports",
+    contentSelector: ".page-content, .main-content, article, main, #content",
+    dateSelector: "time, .date, .updated",
+  },
+  {
+    name: "Texas Parks & Wildlife Fishing Reports",
+    url: "https://tpwd.texas.gov/fishboat/fish/recreational/fishreport.phtml",
+    contentSelector: "#content, .report-body, article, main",
     dateSelector: "time, .date, .updated",
   },
 ];
@@ -472,6 +677,114 @@ export async function searchReportSite(
       if (report) reports.push(report);
     } catch {
       // Skip failed articles
+    }
+  }
+
+  return reports;
+}
+
+// ─── RSS / Atom feed scraping ───────────────────────────────────────────────
+
+/**
+ * Parse an RSS or Atom feed and extract article URLs + metadata.
+ * Returns the most recent entries (up to maxEntries).
+ */
+function parseFeedEntries(
+  xml: string,
+  source: FeedSource,
+  maxEntries = 5
+): { url: string; title: string; publishDate: string | null }[] {
+  const $ = cheerio.load(xml, { xml: true });
+  const entries: { url: string; title: string; publishDate: string | null }[] = [];
+
+  // RSS 2.0 uses <item>, Atom uses <entry>
+  const items = $("item").length > 0 ? $("item") : $("entry");
+
+  items.each((i, el) => {
+    if (i >= maxEntries) return false; // cheerio each break
+
+    const $item = $(el);
+    const title = $item.find("title").first().text().trim();
+    if (!title) return;
+
+    // Link: RSS uses <link> text, Atom uses <link href="">
+    let url =
+      $item.find("link").first().text().trim() ||
+      $item.find("link").first().attr("href") ||
+      "";
+    if (!url) return;
+
+    // Resolve relative URLs
+    if (!url.startsWith("http")) {
+      url = new URL(url, source.siteUrl).toString();
+    }
+
+    // Date: try pubDate (RSS) or updated/published (Atom)
+    let publishDate: string | null = null;
+    const dateStr =
+      $item.find("pubDate").first().text().trim() ||
+      $item.find("updated").first().text().trim() ||
+      $item.find("published").first().text().trim() ||
+      "";
+    if (dateStr) {
+      const parsed = new Date(dateStr);
+      if (!isNaN(parsed.getTime())) {
+        publishDate = parsed.toISOString();
+      }
+    }
+
+    entries.push({ url, title, publishDate });
+  });
+
+  return entries;
+}
+
+/**
+ * Scrape all RSS/Atom feed sources. Called once per pipeline run.
+ * Fetches feeds, parses entries, and scrapes full article content.
+ */
+async function scrapeFeedSources(): Promise<ScrapedReport[]> {
+  const reports: ScrapedReport[] = [];
+
+  for (const source of FEED_SOURCES) {
+    try {
+      const xml = await fetchPage(source.feedUrl);
+      if (!xml) {
+        log.warn(`Could not fetch feed: ${source.name}`);
+        continue;
+      }
+
+      const entries = parseFeedEntries(xml, source);
+      if (entries.length === 0) continue;
+
+      log.info(`Parsed ${entries.length} entries from ${source.name} feed`);
+
+      // Fetch full article content for each entry
+      for (const entry of entries) {
+        try {
+          const html = await fetchPage(entry.url);
+          if (!html) continue;
+
+          const report = scrapeArticleContent(
+            html,
+            entry.url,
+            source.name,
+            source.contentSelector,
+            source.dateSelector
+          );
+          if (report) {
+            // Use feed date if article date wasn't found
+            if (!report.publishDate && entry.publishDate) {
+              report.publishDate = entry.publishDate;
+            }
+            reports.push(report);
+          }
+        } catch {
+          // Skip failed articles
+        }
+      }
+    } catch (err) {
+      log.warn(`Failed to scrape feed: ${source.name}`, { error: String(err) });
     }
   }
 
@@ -782,7 +1095,7 @@ export async function discoverFishingReports(
  * Scrape all direct report pages. Called once per pipeline run
  * (not per query) since these are known URLs.
  */
-export { scrapeDirectReportPages };
+export { scrapeDirectReportPages, scrapeFeedSources };
 
 /**
  * Discover reports for a specific water body name.
