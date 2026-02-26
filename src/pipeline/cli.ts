@@ -18,6 +18,7 @@ import { discoverTechniqueVideos } from "./scrapers/techniques";
 import { discoverPatternImages, isPlaceholderImage, validateImageWithVision } from "./scrapers/images";
 import {
   discoverFishingReports,
+  scrapeDirectReportPages,
   summarizeReports,
   GENERAL_REPORT_QUERIES,
 } from "./scrapers/fishing-reports";
@@ -1268,6 +1269,50 @@ async function cmdFishingReports(args: string[]) {
     } catch (err) {
       log.warn(`Query failed: "${query}"`, { error: String(err) });
     }
+  }
+
+  // Step 2: Scrape direct report pages (fly shops, guides, state agencies
+  // that have a known fishing report URL)
+  log.info("Scraping direct report pages (fly shops, guides, agencies)...");
+  try {
+    const directReports = await scrapeDirectReportPages();
+    const newDirect = directReports.filter((r) => !seenUrls.has(r.url));
+    for (const r of directReports) seenUrls.add(r.url);
+
+    log.info(
+      `Found ${newDirect.length} reports from direct pages (${directReports.length - newDirect.length} dupes skipped)`
+    );
+
+    for (const report of newDirect) {
+      try {
+        const summary = await summarizeReports([report]);
+        if (!summary || !summary.latitude || !summary.longitude) {
+          failed++;
+          continue;
+        }
+
+        if (dryRun) {
+          console.log(
+            `\n  [DIRECT] [${summary.waterBody}, ${summary.state ?? "?"}] ${summary.summary.slice(0, 100)}...`
+          );
+          continue;
+        }
+
+        const upsertResult = await upsertFishingReport(summary);
+        if (upsertResult === "created") created++;
+        else updated++;
+
+        const wbCreated = await ensureWaterBody(summary);
+        if (wbCreated) waterBodiesCreated++;
+      } catch (err) {
+        log.error(`  Failed to process direct report: ${report.title}`, {
+          error: String(err),
+        });
+        failed++;
+      }
+    }
+  } catch (err) {
+    log.warn("Direct page scraping failed", { error: String(err) });
   }
 
   log.success(
