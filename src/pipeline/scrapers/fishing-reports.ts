@@ -1412,6 +1412,15 @@ async function processReport(
 export async function runFishingReportsPipeline(
   options: { queryLimit?: number } = {},
 ): Promise<FishingReportsPipelineResult> {
+  // Validate that the Prisma client has the FishingReport model.
+  // If not, the user needs to run `npx prisma generate` after schema changes.
+  if (!prisma.fishingReport) {
+    throw new Error(
+      "prisma.fishingReport is undefined — the Prisma client is outdated. " +
+        "Run `npx prisma generate` (or `npm install`) to regenerate it.",
+    );
+  }
+
   const queryLimit = options.queryLimit ?? GENERAL_REPORT_QUERIES.length;
   const queries = GENERAL_REPORT_QUERIES.slice(0, queryLimit);
 
