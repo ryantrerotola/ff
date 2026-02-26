@@ -709,11 +709,11 @@ async function main() {
     const labels = ["< 0.3", "0.3–0.5", "0.5–0.7", "0.7–0.9", ">= 0.9"];
     for (let i = 0; i < labels.length; i++) {
       const count = stagedExtractions.filter(
-        (e) => e.confidence >= buckets[i] && e.confidence < buckets[i + 1],
+        (e) => e.confidence >= buckets[i]! && e.confidence < buckets[i + 1]!,
       ).length;
       const bar = "█".repeat(Math.round((count / stagedExtractions.length) * 40));
       console.log(
-        `  ${labels[i].padEnd(10)} ${String(count).padStart(4)}  ${bar}`,
+        `  ${labels[i]!.padEnd(10)} ${String(count).padStart(4)}  ${bar}`,
       );
     }
   }
