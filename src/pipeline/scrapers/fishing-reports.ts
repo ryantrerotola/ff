@@ -1,8 +1,10 @@
 import * as cheerio from "cheerio";
 import Anthropic from "@anthropic-ai/sdk";
+import { prisma } from "@/lib/prisma";
 import { createLogger } from "../utils/logger";
 import { createRateLimiter, retry } from "../utils/rate-limit";
 import { PIPELINE_CONFIG } from "../config";
+import { slugify } from "../utils/slug";
 
 const log = createLogger("fishing-reports");
 const rateLimit = createRateLimiter(PIPELINE_CONFIG.scraping.requestDelayMs);
@@ -1266,4 +1268,254 @@ Be concise and practical. Always provide latitude, longitude, and state — use 
     log.error("Failed to summarize reports", { error: String(err) });
     return null;
   }
+}
+
+// ─── Pipeline Runner ────────────────────────────────────────────────────────
+
+export interface FishingReportsPipelineResult {
+  created: number;
+  updated: number;
+  failed: number;
+  waterBodiesCreated: number;
+  totalReportsScraped: number;
+}
+
+/**
+ * Upsert a fishing report — update if exists for this water body + region,
+ * create if new.
+ */
+async function upsertFishingReport(
+  summary: SummarizedReport,
+): Promise<"created" | "updated"> {
+  const existing = await prisma.fishingReport.findUnique({
+    where: {
+      waterBody_region: {
+        waterBody: summary.waterBody,
+        region: summary.region,
+      },
+    },
+  });
+
+  if (existing) {
+    await prisma.fishingReport.update({
+      where: { id: existing.id },
+      data: {
+        summary: summary.summary,
+        conditions: summary.conditions,
+        sourceUrls: summary.sourceUrls,
+        sourceTitles: summary.sourceTitles,
+        latitude: summary.latitude,
+        longitude: summary.longitude,
+        state: summary.state,
+        reportDate: new Date(summary.reportDate),
+      },
+    });
+    log.info(`  Updated report for ${summary.waterBody}`);
+    return "updated";
+  }
+
+  await prisma.fishingReport.create({
+    data: {
+      waterBody: summary.waterBody,
+      region: summary.region,
+      state: summary.state,
+      latitude: summary.latitude,
+      longitude: summary.longitude,
+      summary: summary.summary,
+      conditions: summary.conditions,
+      sourceUrls: summary.sourceUrls,
+      sourceTitles: summary.sourceTitles,
+      reportDate: new Date(summary.reportDate),
+    },
+  });
+  log.info(`  Created report for ${summary.waterBody}`);
+  return "created";
+}
+
+/**
+ * Auto-create a WaterBody record from a summarized report if one doesn't
+ * already exist.
+ */
+async function ensureWaterBody(summary: SummarizedReport): Promise<boolean> {
+  const waterSlug = slugify(
+    summary.state
+      ? `${summary.waterBody} ${summary.state}`
+      : summary.waterBody,
+  );
+
+  const existing = await prisma.waterBody.findUnique({
+    where: { slug: waterSlug },
+  });
+
+  if (existing) return false;
+
+  const existingByName = await prisma.waterBody.findUnique({
+    where: {
+      name_region: {
+        name: summary.waterBody,
+        region: summary.region,
+      },
+    },
+  });
+
+  if (existingByName) return false;
+
+  await prisma.waterBody.create({
+    data: {
+      name: summary.waterBody,
+      slug: waterSlug,
+      state: summary.state,
+      region: summary.region,
+      latitude: summary.latitude,
+      longitude: summary.longitude,
+      waterType: summary.waterType,
+    },
+  });
+  log.info(`  Auto-created water body: ${summary.waterBody} (${waterSlug})`);
+  return true;
+}
+
+/**
+ * Process a single scraped report: summarize with Claude, upsert, and ensure
+ * the water body exists. Returns the action taken.
+ */
+async function processReport(
+  report: ScrapedReport,
+  stats: { created: number; updated: number; failed: number; waterBodiesCreated: number },
+): Promise<void> {
+  const summary = await summarizeReports([report]);
+  if (!summary) {
+    log.warn(`  Could not summarize: ${report.title}`);
+    stats.failed++;
+    return;
+  }
+
+  if (!summary.latitude || !summary.longitude) {
+    log.warn(`  No coordinates for ${summary.waterBody} — skipping`);
+    stats.failed++;
+    return;
+  }
+
+  const upsertResult = await upsertFishingReport(summary);
+  if (upsertResult === "created") stats.created++;
+  else stats.updated++;
+
+  const wbCreated = await ensureWaterBody(summary);
+  if (wbCreated) stats.waterBodiesCreated++;
+}
+
+/**
+ * Run the full fishing reports pipeline: discover, scrape, summarize, and
+ * upsert all fishing reports. This is the core function used by both the CLI
+ * command and the cron API route.
+ */
+export async function runFishingReportsPipeline(
+  options: { queryLimit?: number } = {},
+): Promise<FishingReportsPipelineResult> {
+  const queryLimit = options.queryLimit ?? GENERAL_REPORT_QUERIES.length;
+  const queries = GENERAL_REPORT_QUERIES.slice(0, queryLimit);
+
+  const stats = { created: 0, updated: 0, failed: 0, waterBodiesCreated: 0 };
+  const seenUrls = new Set<string>();
+
+  // Step 1: Query-based search
+  log.info(
+    `Step 1: Discovering fishing reports using ${queries.length} search queries`,
+  );
+
+  for (let qi = 0; qi < queries.length; qi++) {
+    const query = queries[qi]!;
+    log.info(`  [${qi + 1}/${queries.length}] "${query}"`);
+
+    try {
+      const reports = await discoverFishingReports(query);
+      if (reports.length === 0) {
+        log.info(`    No reports found`);
+        continue;
+      }
+
+      const newReports = reports.filter((r) => !seenUrls.has(r.url));
+      for (const r of reports) seenUrls.add(r.url);
+
+      if (newReports.length === 0) {
+        log.info(`    All ${reports.length} reports already processed`);
+        continue;
+      }
+
+      log.info(
+        `    Found ${newReports.length} new reports (${reports.length - newReports.length} dupes skipped)`,
+      );
+
+      for (const report of newReports) {
+        try {
+          await processReport(report, stats);
+        } catch (err) {
+          log.error(`    Failed to process report: ${report.title}`, {
+            error: String(err),
+          });
+          stats.failed++;
+        }
+      }
+    } catch (err) {
+      log.warn(`  Query failed: "${query}"`, { error: String(err) });
+    }
+  }
+
+  // Step 2: Direct report pages
+  log.info("Step 2: Scraping direct report pages (fly shops, guides, agencies)...");
+  try {
+    const directReports = await scrapeDirectReportPages();
+    const newDirect = directReports.filter((r) => !seenUrls.has(r.url));
+    for (const r of directReports) seenUrls.add(r.url);
+
+    log.info(
+      `  Found ${newDirect.length} reports from direct pages (${directReports.length - newDirect.length} dupes skipped)`,
+    );
+
+    for (const report of newDirect) {
+      try {
+        await processReport(report, stats);
+      } catch (err) {
+        log.error(`  Failed to process direct report: ${report.title}`, {
+          error: String(err),
+        });
+        stats.failed++;
+      }
+    }
+  } catch (err) {
+    log.warn("Direct page scraping failed", { error: String(err) });
+  }
+
+  // Step 3: RSS/Atom feeds
+  log.info("Step 3: Scraping RSS/Atom feeds (fly shops, blogs)...");
+  try {
+    const feedReports = await scrapeFeedSources();
+    const newFeeds = feedReports.filter((r) => !seenUrls.has(r.url));
+    for (const r of feedReports) seenUrls.add(r.url);
+
+    log.info(
+      `  Found ${newFeeds.length} reports from feeds (${feedReports.length - newFeeds.length} dupes skipped)`,
+    );
+
+    for (const report of newFeeds) {
+      try {
+        await processReport(report, stats);
+      } catch (err) {
+        log.error(`  Failed to process feed report: ${report.title}`, {
+          error: String(err),
+        });
+        stats.failed++;
+      }
+    }
+  } catch (err) {
+    log.warn("Feed scraping failed", { error: String(err) });
+  }
+
+  const totalReportsScraped = seenUrls.size;
+
+  log.info(
+    `Fishing reports pipeline complete: ${stats.created} created, ${stats.updated} updated, ${stats.failed} failed, ${stats.waterBodiesCreated} water bodies auto-created`,
+  );
+
+  return { ...stats, totalReportsScraped };
 }
