@@ -12,7 +12,7 @@ const rateLimit = createRateLimiter(250);
 export interface DiscoveredImage {
   url: string;
   caption: string;
-  source: "google" | "youtube_thumb" | "bing" | "wikimedia" | "blog_scrape";
+  source: "brave" | "youtube_thumb" | "wikimedia" | "blog_scrape";
   relevanceScore: number;
 }
 
@@ -99,75 +99,14 @@ function scoreImageRelevance(
   return Math.min(score, 1.0);
 }
 
-// ─── Google Custom Search ────────────────────────────────────────────────────
+// ─── Brave Image Search ─────────────────────────────────────────────────────
 
-const GOOGLE_CSE_API = "https://www.googleapis.com/customsearch/v1";
+const BRAVE_IMAGES_API = "https://api.search.brave.com/res/v1/images/search";
 
-async function searchGoogleImages(
+async function searchBraveImages(
   query: string
 ): Promise<DiscoveredImage[]> {
-  const apiKey = process.env.GOOGLE_CSE_API_KEY;
-  const engineId = process.env.GOOGLE_CSE_ENGINE_ID;
-
-  if (!apiKey || !engineId) {
-    return [];
-  }
-
-  await rateLimit();
-
-  const params = new URLSearchParams({
-    key: apiKey,
-    cx: engineId,
-    q: query,
-    searchType: "image",
-    num: "5",
-    imgSize: "large",
-    safe: "active",
-  });
-
-  try {
-    const res = await retry(
-      () =>
-        fetch(`${GOOGLE_CSE_API}?${params}`, {
-          headers: { "User-Agent": PIPELINE_CONFIG.scraping.userAgent },
-          signal: AbortSignal.timeout(PIPELINE_CONFIG.scraping.timeoutMs),
-        }),
-      { maxRetries: 2, backoffMs: 2000, label: `google-images:${query}` }
-    );
-
-    if (!res.ok) {
-      log.error(`Google CSE error: ${res.status}`, { query });
-      return [];
-    }
-
-    const data = (await res.json()) as {
-      items?: {
-        link: string;
-        title: string;
-        image?: { contextLink: string };
-      }[];
-    };
-
-    return (data.items ?? []).map((item, i) => ({
-      url: item.link,
-      caption: item.title,
-      source: "google" as const,
-      relevanceScore: 1 - i * 0.15,
-    }));
-  } catch (err) {
-    log.error("Google image search failed", { query, error: String(err) });
-    return [];
-  }
-}
-
-// ─── Bing Image Search (fallback) ────────────────────────────────────────────
-
-const BING_API = "https://api.bing.microsoft.com/v7.0/images/search";
-
-async function searchBingImages(
-  query: string
-): Promise<DiscoveredImage[]> {
-  const apiKey = process.env.BING_SEARCH_API_KEY;
+  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
 
   if (!apiKey) {
     return [];
@@ -178,40 +117,45 @@ async function searchBingImages(
   const params = new URLSearchParams({
     q: query,
     count: "5",
-    imageType: "Photo",
-    safeSearch: "Moderate",
+    safesearch: "moderate",
   });
 
   try {
     const res = await retry(
       () =>
-        fetch(`${BING_API}?${params}`, {
+        fetch(`${BRAVE_IMAGES_API}?${params}`, {
           headers: {
-            "Ocp-Apim-Subscription-Key": apiKey,
-            "User-Agent": PIPELINE_CONFIG.scraping.userAgent,
+            "Accept": "application/json",
+            "Accept-Encoding": "gzip",
+            "X-Subscription-Token": apiKey,
           },
           signal: AbortSignal.timeout(PIPELINE_CONFIG.scraping.timeoutMs),
         }),
-      { maxRetries: 2, backoffMs: 2000, label: `bing-images:${query}` }
+      { maxRetries: 2, backoffMs: 2000, label: `brave-images:${query}` }
     );
 
     if (!res.ok) {
-      log.error(`Bing image search error: ${res.status}`, { query });
+      log.error(`Brave image search error: ${res.status}`, { query });
       return [];
     }
 
     const data = (await res.json()) as {
-      value?: { contentUrl: string; name: string }[];
+      results?: {
+        url: string;
+        title: string;
+        properties?: { url?: string };
+        thumbnail?: { src: string };
+      }[];
     };
 
-    return (data.value ?? []).map((item, i) => ({
-      url: item.contentUrl,
-      caption: item.name,
-      source: "bing" as const,
-      relevanceScore: 0.8 - i * 0.1,
+    return (data.results ?? []).map((item, i) => ({
+      url: item.properties?.url || item.url,
+      caption: item.title,
+      source: "brave" as const,
+      relevanceScore: 1 - i * 0.15,
     }));
   } catch (err) {
-    log.error("Bing image search failed", { query, error: String(err) });
+    log.error("Brave image search failed", { query, error: String(err) });
     return [];
   }
 }
@@ -536,14 +480,9 @@ export async function discoverPatternImages(
   const query = `${patternName} fly pattern tying close up photo`;
   let images: DiscoveredImage[] = [];
 
-  // 1. Try paid APIs first (highest quality if configured)
-  const googleImages = await searchGoogleImages(query);
-  if (googleImages.length > 0) {
-    images.push(...googleImages);
-  } else {
-    const bingImages = await searchBingImages(query);
-    images.push(...bingImages);
-  }
+  // 1. Try Brave image search first (highest quality if configured)
+  const braveImages = await searchBraveImages(query);
+  images.push(...braveImages);
 
   // 2. Wikimedia Commons (free, no key)
   const wikiImages = await searchWikimediaImages(patternName);
