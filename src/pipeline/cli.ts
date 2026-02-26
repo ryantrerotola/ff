@@ -17,12 +17,9 @@ import { scrapeNews } from "./scrapers/news";
 import { discoverTechniqueVideos } from "./scrapers/techniques";
 import { discoverPatternImages, isPlaceholderImage, validateImageWithVision } from "./scrapers/images";
 import {
-  discoverReportsForWater,
-  discoverFishingReports,
-  summarizeReports,
   GENERAL_REPORT_QUERIES,
+  runFishingReportsPipeline,
 } from "./scrapers/fishing-reports";
-import type { ScrapedReport } from "./scrapers/fishing-reports";
 
 import {
   createStagedSource,
@@ -1184,186 +1181,16 @@ async function cmdBuyLinks(args: string[]) {
 // ─── COMMAND: fishing-reports ────────────────────────────────────────────
 
 async function cmdFishingReports(args: string[]) {
-  const dryRun = args.includes("--dry-run");
   const limitArg = args.find((a) => a.startsWith("--limit="));
-  const limit = limitArg ? parseInt(limitArg.split("=")[1]!, 10) : 30;
-  const slugFilters = args.filter((a) => !a.startsWith("--"));
+  const queryLimit = limitArg ? parseInt(limitArg.split("=")[1]!, 10) : undefined;
 
-  log.info("Discovering and summarizing fishing reports");
+  log.info("Running fishing reports pipeline...");
 
-  // Step 1: Gather water bodies to search for
-  const waterBodies = slugFilters.length > 0
-    ? await prisma.waterBody.findMany({
-        where: { slug: { in: slugFilters } },
-      })
-    : await prisma.waterBody.findMany({
-        orderBy: [{ region: "asc" }, { name: "asc" }],
-        take: limit,
-      });
-
-  log.info(`Processing ${waterBodies.length} water bodies`);
-
-  if (waterBodies.length === 0) {
-    log.warn("No water bodies found. Add water bodies first.");
-    return;
-  }
-
-  let created = 0;
-  let updated = 0;
-  let failed = 0;
-
-  for (let i = 0; i < waterBodies.length; i++) {
-    const wb = waterBodies[i]!;
-    console.log(progressBar(i + 1, waterBodies.length, wb.name));
-
-    try {
-      // Discover reports for this water body
-      const reports = await discoverReportsForWater(wb.name, wb.state);
-
-      if (reports.length === 0) {
-        log.info(`  No reports found for ${wb.name}`);
-        failed++;
-        continue;
-      }
-
-      log.info(`  Found ${reports.length} reports for ${wb.name}`);
-
-      // Summarize with Claude
-      const summary = await summarizeReports(reports, {
-        name: wb.name,
-        state: wb.state,
-        latitude: wb.latitude,
-        longitude: wb.longitude,
-      });
-
-      if (!summary) {
-        log.warn(`  Failed to summarize reports for ${wb.name}`);
-        failed++;
-        continue;
-      }
-
-      if (dryRun) {
-        console.log(`\n  ${wb.name}: ${summary.summary.slice(0, 120)}...`);
-        continue;
-      }
-
-      // Upsert into database
-      const existing = await prisma.fishingReport.findUnique({
-        where: {
-          waterBody_region: {
-            waterBody: wb.name,
-            region: summary.region || wb.region,
-          },
-        },
-      });
-
-      if (existing) {
-        await prisma.fishingReport.update({
-          where: { id: existing.id },
-          data: {
-            summary: summary.summary,
-            conditions: summary.conditions,
-            sourceUrls: summary.sourceUrls,
-            sourceTitles: summary.sourceTitles,
-            latitude: summary.latitude ?? wb.latitude,
-            longitude: summary.longitude ?? wb.longitude,
-            state: summary.state ?? wb.state,
-            reportDate: new Date(summary.reportDate),
-          },
-        });
-        updated++;
-        log.info(`  Updated report for ${wb.name}`);
-      } else {
-        await prisma.fishingReport.create({
-          data: {
-            waterBody: wb.name,
-            region: summary.region || wb.region,
-            state: summary.state ?? wb.state,
-            latitude: summary.latitude ?? wb.latitude,
-            longitude: summary.longitude ?? wb.longitude,
-            summary: summary.summary,
-            conditions: summary.conditions,
-            sourceUrls: summary.sourceUrls,
-            sourceTitles: summary.sourceTitles,
-            reportDate: new Date(summary.reportDate),
-          },
-        });
-        created++;
-        log.info(`  Created report for ${wb.name}`);
-      }
-    } catch (err) {
-      log.error(`Failed for ${wb.name}`, { error: String(err) });
-      failed++;
-    }
-  }
-
-  // Step 2: Also run general fishing report queries to catch waters
-  // we don't have in our water_bodies table
-  if (slugFilters.length === 0) {
-    log.info("Running general fishing report discovery...");
-
-    for (const query of GENERAL_REPORT_QUERIES.slice(0, 3)) {
-      try {
-        const reports = await discoverFishingReports(query);
-        if (reports.length === 0) continue;
-
-        // Group reports that seem to be about the same water
-        // and summarize each group
-        const grouped = groupReportsByContent(reports);
-
-        for (const group of grouped) {
-          const summary = await summarizeReports(group);
-          if (!summary || !summary.latitude || !summary.longitude) continue;
-
-          // Check if we already have a report for this water body
-          const existing = await prisma.fishingReport.findUnique({
-            where: {
-              waterBody_region: {
-                waterBody: summary.waterBody,
-                region: summary.region,
-              },
-            },
-          });
-
-          if (existing) continue; // Don't overwrite water-body-specific reports
-
-          if (!dryRun) {
-            await prisma.fishingReport.create({
-              data: {
-                waterBody: summary.waterBody,
-                region: summary.region,
-                state: summary.state,
-                latitude: summary.latitude,
-                longitude: summary.longitude,
-                summary: summary.summary,
-                conditions: summary.conditions,
-                sourceUrls: summary.sourceUrls,
-                sourceTitles: summary.sourceTitles,
-                reportDate: new Date(summary.reportDate),
-              },
-            });
-            created++;
-          }
-        }
-      } catch (err) {
-        log.warn(`General query failed`, { error: String(err) });
-      }
-    }
-  }
+  const result = await runFishingReportsPipeline({ queryLimit });
 
   log.success(
-    `Fishing reports: ${created} created, ${updated} updated, ${failed} failed${dryRun ? " (dry run)" : ""}`
+    `Fishing reports: ${result.created} created, ${result.updated} updated, ${result.failed} failed, ${result.waterBodiesCreated} water bodies auto-created (${result.totalReportsScraped} total scraped)`
   );
-}
-
-/**
- * Simple grouping: each report is treated as its own group since they come
- * from different search results. In the future this could cluster by
- * water body name similarity.
- */
-function groupReportsByContent(reports: ScrapedReport[]): ScrapedReport[][] {
-  // For now, treat each report individually — Claude will identify the water body
-  return reports.map((r) => [r]);
 }
 
 // ─── COMMAND: enrich-hatches ────────────────────────────────────────────
@@ -2217,9 +2044,12 @@ Commands:
   buy-links [--dry-run] [--clear]
                                Generate buy links to fly tying retailers
                                for every material in the database
-  fishing-reports [slugs...] [--dry-run] [--limit=N]
-                               Discover, scrape, and summarize fishing reports
-                               for water bodies. Creates map-ready report data.
+  fishing-reports [--dry-run] [--limit=N]
+                               Discover fishing reports from the web, extract
+                               water body data, and auto-create both reports
+                               and water body records. No manual input needed.
+                               --limit=N controls how many search queries to run
+                               (default: all ${GENERAL_REPORT_QUERIES.length} queries)
   add-hatches <file|--inline>  Add hatch chart entries from JSON file or inline
   add-water-bodies <file|--inline>  Add water bodies from JSON
   import-water-bodies-csv <file>    Import water bodies from CSV file
