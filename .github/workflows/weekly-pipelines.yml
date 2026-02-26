@@ -1,0 +1,71 @@
+name: Weekly Pipelines
+
+on:
+  schedule:
+    # Every Monday at 5:00 AM UTC
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      pipeline:
+        description: "Which pipeline to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - fishing-reports
+          - news
+
+jobs:
+  fishing-reports:
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event.inputs.pipeline == 'all' ||
+      github.event.inputs.pipeline == 'fishing-reports'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - name: Run fishing reports pipeline
+        run: npx tsx src/pipeline/cli.ts fishing-reports
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_CSE_API_KEY: ${{ secrets.GOOGLE_CSE_API_KEY }}
+          GOOGLE_CSE_ENGINE_ID: ${{ secrets.GOOGLE_CSE_ENGINE_ID }}
+          BING_SEARCH_API_KEY: ${{ secrets.BING_SEARCH_API_KEY }}
+
+  news:
+    if: >-
+      github.event.inputs.pipeline == 'all' ||
+      github.event.inputs.pipeline == 'news'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - name: Run news scraper
+        run: npx tsx src/pipeline/cli.ts news
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
