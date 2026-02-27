@@ -47,27 +47,27 @@ function isUsableImageUrl(url: string): boolean {
   if (!url || url.length < 10) return false;
   // Must be an absolute HTTP(S) URL
   if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
-  // Skip common junk: icons, logos, avatars, ads, tracking pixels, svgs, stock photos
+  // Skip obvious junk: icons, logos, avatars, ads, tracking pixels, svgs, stock photos
   const lower = url.toLowerCase();
   const skipPatterns = [
     "logo", "icon", "avatar", "gravatar", "pixel", "tracking",
-    "advertisement", "ad-", "/ads/", "badge", "button", "banner",
-    "sprite", ".svg", "1x1", "spacer", "blank", "loading", "spinner",
-    "favicon", "emoji", "smiley", "widget", "share", "social",
-    "placehold", "placeholder", "stock", "shutterstock", "gettyimages",
+    "advertisement", "/ads/", "badge", "button",
+    "sprite", ".svg", "1x1", "spacer", "blank", "spinner",
+    "favicon", "emoji", "smiley", "widget",
+    "placehold", "placeholder", "shutterstock", "gettyimages",
     "istockphoto", "depositphotos", "dreamstime", "adobestock",
-    "thumbnail-default", "author-", "profile-", "/author/", "/profile/",
-    "/avatar/", "gravatar.com", "wp-includes", "admin-ajax",
-    "/plugins/", "/themes/", "cart", "checkout", "payment",
-    "newsletter", "subscribe", "promo", "coupon", "discount",
-    "header-bg", "footer-bg", "background", "hero-image",
-    "landscape", "scenery", "river-photo", "mountain-view",
+    "thumbnail-default", "/avatar/", "gravatar.com",
+    "admin-ajax", "cart", "checkout", "payment",
   ];
   if (skipPatterns.some((p) => lower.includes(p))) return false;
-  // Must end with an image extension or have common image path patterns
+  // Accept image extensions, common image path patterns, or CDN URLs
   const hasImageExt = /\.(jpe?g|png|webp)(\?.*)?$/i.test(url);
   const hasImagePath = /\/wp-content\/uploads\//i.test(url) || /\/images?\//i.test(url);
-  return hasImageExt || hasImagePath;
+  const hasCdnPattern = /\.(imgix|cloudinary|fastly|akamai|cloudfront|cdn)\./.test(lower)
+    || /\/cdn[-/]/.test(lower);
+  // Also accept URLs with image format query params (e.g. ?format=jpg)
+  const hasFormatParam = /[?&](?:format|fm)=(?:jpe?g|png|webp)/i.test(url);
+  return hasImageExt || hasImagePath || hasCdnPattern || hasFormatParam;
 }
 
 /** Score an image URL's relevance for a given fly pattern name. */
@@ -116,7 +116,7 @@ async function searchBraveImages(
 
   const params = new URLSearchParams({
     q: query,
-    count: "5",
+    count: "20",
     safesearch: "off",
   });
 
@@ -187,7 +187,7 @@ async function searchSerperImages(
           },
           body: JSON.stringify({
             q: query,
-            num: 5,
+            num: 20,
           }),
           signal: AbortSignal.timeout(PIPELINE_CONFIG.scraping.timeoutMs),
         }),
@@ -374,6 +374,30 @@ const FLY_IMAGE_SITES = [
       `https://www.flytyer.com/?s=${encodeURIComponent(q)}`,
     contentSelector: "article, .entry-content",
   },
+  {
+    name: "Global FlyFisher",
+    searchUrl: (q: string) =>
+      `https://globalflyfisher.com/?s=${encodeURIComponent(q)}`,
+    contentSelector: "article, .entry-content, .post-content",
+  },
+  {
+    name: "Fly Fish Food",
+    searchUrl: (q: string) =>
+      `https://www.flyfishfood.com/?s=${encodeURIComponent(q)}`,
+    contentSelector: "article, .entry-content, .post-content",
+  },
+  {
+    name: "The Fly Crate",
+    searchUrl: (q: string) =>
+      `https://theflycrate.com/?s=${encodeURIComponent(q + " fly pattern")}`,
+    contentSelector: "article, .entry-content, .post-content",
+  },
+  {
+    name: "Trident Fly Fishing",
+    searchUrl: (q: string) =>
+      `https://www.tridentflyfishing.com/search?q=${encodeURIComponent(q + " fly")}`,
+    contentSelector: "article, .entry-content, .product-content",
+  },
 ];
 
 /**
@@ -407,8 +431,8 @@ async function scrapeBlogImages(
       // Also extract images directly from search results page
       extractImagesFromHtml($, patternName, site.name, allImages);
 
-      // Scrape the first 2 article pages for higher-quality images
-      for (const articleUrl of articleLinks.slice(0, 2)) {
+      // Scrape the first 3 article pages for higher-quality images
+      for (const articleUrl of articleLinks.slice(0, 3)) {
         try {
           const articleHtml = await fetchPage(articleUrl);
           if (!articleHtml) continue;
@@ -421,7 +445,7 @@ async function scrapeBlogImages(
         }
       }
 
-      if (allImages.length >= 5) break; // Enough images found
+      if (allImages.length >= 15) break; // Enough images found
     } catch (err) {
       log.debug(`Blog scrape failed for ${site.name}: ${String(err)}`);
     }
@@ -524,43 +548,46 @@ export function extractImagesFromStagedContent(
 
 /**
  * Search for images of a fly pattern using all available sources.
- * Fallback chain: Google CSE → Bing → Wikimedia Commons → Blog scraping
- * YouTube thumbnails are always added as a baseline.
+ * Runs API searches in parallel, always scrapes blogs, uses multiple query variants.
  */
 export async function discoverPatternImages(
   patternName: string,
   existingVideoIds: string[] = [],
   stagedHtmlContent: string[] = []
 ): Promise<DiscoveredImage[]> {
-  const query = `${patternName} fly pattern tying close up photo`;
+  // Use multiple query variants to cast a wider net
+  const queries = [
+    `${patternName} fly pattern close up photo`,
+    `${patternName} fly tying recipe`,
+  ];
+
   let images: DiscoveredImage[] = [];
 
-  // 1. Try Brave image search first (highest quality if configured)
-  const braveImages = await searchBraveImages(query);
-  images.push(...braveImages);
+  // 1. Run all API searches in parallel (Brave, Serper, Wikimedia, blogs)
+  const apiSearches = [
+    ...queries.flatMap((q) => [
+      searchBraveImages(q),
+      searchSerperImages(q),
+    ]),
+    searchWikimediaImages(patternName),
+    scrapeBlogImages(patternName),
+  ];
 
-  // 2. Serper image search (Google Images — different results than Brave)
-  const serperImages = await searchSerperImages(query);
-  images.push(...serperImages);
+  const results = await Promise.allSettled(apiSearches);
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      images.push(...result.value);
+    }
+  }
 
-  // 3. Wikimedia Commons (free, no key)
-  const wikiImages = await searchWikimediaImages(patternName);
-  images.push(...wikiImages);
-
-  // 4. Extract from already-scraped staged sources (free, no network)
+  // 2. Extract from already-scraped staged sources (free, no network)
   for (const html of stagedHtmlContent) {
     const stagedImages = extractImagesFromStagedContent(html, patternName);
     images.push(...stagedImages);
   }
 
-  // 5. Scrape fly tying blog sites (free, but slower)
-  if (images.filter((i) => i.source !== "youtube_thumb").length < 3) {
-    const blogImages = await scrapeBlogImages(patternName);
-    images.push(...blogImages);
-  }
-
-  // 6. Always add YouTube thumbnails from existing scraped sources
-  for (const videoId of existingVideoIds.slice(0, 3)) {
+  // 3. Always add YouTube thumbnails from existing scraped sources
+  for (const videoId of existingVideoIds.slice(0, 5)) {
     images.push(...youtubeThumbUrls(videoId));
   }
 
@@ -667,7 +694,7 @@ export async function validateImageWithVision(
             },
             {
               type: "text",
-              text: `Does this image show a "${patternName}" fly pattern specifically? Consider the fly's shape, colors, materials, and style. A "${patternName}" should look distinctly like that pattern, not just any fly on a hook. Answer ONLY "yes" or "no".`,
+              text: `Does this image show a fly used for fly fishing? It should be an artificial fly (tied on a hook with feathers, fur, thread, etc.) — not a nature photo, logo, person, landscape, or product listing. It could be a "${patternName}" or a similar fly pattern. Answer ONLY "yes" or "no".`,
             },
           ],
         },

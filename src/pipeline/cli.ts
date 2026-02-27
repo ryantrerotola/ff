@@ -558,10 +558,10 @@ async function cmdImages(args: string[]) {
         include: { images: true },
       });
 
-  // Find patterns that only have placeholder images (or no images at all)
+  // Find patterns that have fewer than 3 real (non-placeholder) images
   const needsImages = patterns.filter((p) => {
-    if (p.images.length === 0) return true;
-    return p.images.every((img) => isPlaceholderImage(img.url));
+    const realImages = p.images.filter((img) => !isPlaceholderImage(img.url));
+    return realImages.length < 3;
   });
 
   log.info(
@@ -611,8 +611,8 @@ async function cmdImages(args: string[]) {
 
       // Validate top candidates with Claude vision — only keep actual fly pattern photos
       const validated: typeof images = [];
-      for (const img of images.slice(0, 8)) {
-        if (validated.length >= 3) break;
+      for (const img of images.slice(0, 20)) {
+        if (validated.length >= 5) break;
         log.info(`  Validating: ${img.url.slice(0, 80)}...`);
         const isValid = await validateImageWithVision(img.url, pattern.name);
         if (isValid) {
