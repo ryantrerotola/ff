@@ -851,6 +851,7 @@ async function searchBraveWeb(query: string): Promise<ScrapedReport[]> {
           headers: {
             "Accept": "application/json",
             "Accept-Encoding": "gzip",
+            "Cache-Control": "no-cache",
             "X-Subscription-Token": apiKey,
           },
           signal: AbortSignal.timeout(PIPELINE_CONFIG.scraping.timeoutMs),
