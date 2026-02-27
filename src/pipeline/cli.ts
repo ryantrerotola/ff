@@ -739,12 +739,27 @@ async function cmdCleanImages(args: string[]) {
 async function cmdRun(args: string[]) {
   log.info("Running full pipeline");
 
+  // Phase 1: Discover, scrape, extract, normalize, approve, ingest
   await cmdDiscover(args);
   await cmdScrape();
   await cmdExtract();
   await cmdNormalize();
   await cmdAutoApprove();
   await cmdIngest();
+
+  // Phase 2: Enrich patterns with missing tying steps, videos, descriptions
+  await cmdEnrich(args);
+
+  // Phase 3: Images — discover & validate real photos for each pattern
+  await cmdImages(args);
+
+  // Phase 4: Buy links — affiliate links for all materials
+  await cmdBuyLinks([]);
+
+  // Phase 5: Enrich supporting data (techniques & hatches)
+  await cmdEnrichTechniques([]);
+  await cmdEnrichHatches([]);
+
   await cmdStatus();
 
   log.success("Full pipeline run complete");

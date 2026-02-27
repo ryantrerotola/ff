@@ -117,7 +117,7 @@ async function searchBraveImages(
   const params = new URLSearchParams({
     q: query,
     count: "5",
-    safesearch: "moderate",
+    safesearch: "off",
   });
 
   try {
