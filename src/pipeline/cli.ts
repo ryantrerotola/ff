@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { prisma } from "@/lib/prisma";
 import { validateConfig, PIPELINE_CONFIG } from "./config";
 import { createLogger, progressBar } from "./utils/logger";

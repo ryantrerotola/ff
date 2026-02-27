@@ -12,7 +12,7 @@ const rateLimit = createRateLimiter(250);
 export interface DiscoveredImage {
   url: string;
   caption: string;
-  source: "brave" | "youtube_thumb" | "wikimedia" | "blog_scrape";
+  source: "brave" | "serper" | "youtube_thumb" | "wikimedia" | "blog_scrape";
   relevanceScore: number;
 }
 
@@ -156,6 +156,60 @@ async function searchBraveImages(
     }));
   } catch (err) {
     log.error("Brave image search failed", { query, error: String(err) });
+    return [];
+  }
+}
+
+// ─── Serper Image Search (Google Images fallback) ───────────────────────────
+
+const SERPER_IMAGES_API = "https://google.serper.dev/images";
+
+async function searchSerperImages(
+  query: string
+): Promise<DiscoveredImage[]> {
+  const apiKey = process.env.SERPER_API_KEY;
+
+  if (!apiKey) {
+    return [];
+  }
+
+  await rateLimit();
+
+  try {
+    const res = await retry(
+      () =>
+        fetch(SERPER_IMAGES_API, {
+          method: "POST",
+          headers: {
+            "X-API-KEY": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            q: query,
+            num: 5,
+          }),
+          signal: AbortSignal.timeout(PIPELINE_CONFIG.scraping.timeoutMs),
+        }),
+      { maxRetries: 2, backoffMs: 2000, label: `serper-images:${query}` }
+    );
+
+    if (!res.ok) {
+      log.error(`Serper image search error: ${res.status}`, { query });
+      return [];
+    }
+
+    const data = (await res.json()) as {
+      images?: { imageUrl: string; title: string; link: string }[];
+    };
+
+    return (data.images ?? []).map((item, i) => ({
+      url: item.imageUrl,
+      caption: item.title,
+      source: "serper" as const,
+      relevanceScore: 0.9 - i * 0.15,
+    }));
+  } catch (err) {
+    log.error("Serper image search failed", { query, error: String(err) });
     return [];
   }
 }
@@ -484,23 +538,27 @@ export async function discoverPatternImages(
   const braveImages = await searchBraveImages(query);
   images.push(...braveImages);
 
-  // 2. Wikimedia Commons (free, no key)
+  // 2. Serper image search (Google Images — different results than Brave)
+  const serperImages = await searchSerperImages(query);
+  images.push(...serperImages);
+
+  // 3. Wikimedia Commons (free, no key)
   const wikiImages = await searchWikimediaImages(patternName);
   images.push(...wikiImages);
 
-  // 3. Extract from already-scraped staged sources (free, no network)
+  // 4. Extract from already-scraped staged sources (free, no network)
   for (const html of stagedHtmlContent) {
     const stagedImages = extractImagesFromStagedContent(html, patternName);
     images.push(...stagedImages);
   }
 
-  // 4. Scrape fly tying blog sites (free, but slower)
+  // 5. Scrape fly tying blog sites (free, but slower)
   if (images.filter((i) => i.source !== "youtube_thumb").length < 3) {
     const blogImages = await scrapeBlogImages(patternName);
     images.push(...blogImages);
   }
 
-  // 5. Always add YouTube thumbnails from existing scraped sources
+  // 6. Always add YouTube thumbnails from existing scraped sources
   for (const videoId of existingVideoIds.slice(0, 3)) {
     images.push(...youtubeThumbUrls(videoId));
   }
