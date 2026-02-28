@@ -21,6 +21,13 @@ import {
   GENERAL_REPORT_QUERIES,
   runFishingReportsPipeline,
 } from "./scrapers/fishing-reports";
+import {
+  HATCH_CHART_QUERIES,
+  discoverHatchCharts,
+  scrapeDirectHatchPages,
+  extractHatchEntries,
+} from "./scrapers/hatch-charts";
+import type { ExtractedHatchEntry } from "./scrapers/hatch-charts";
 
 import {
   createStagedSource,
@@ -1208,150 +1215,142 @@ async function cmdFishingReports(args: string[]) {
 // ─── COMMAND: enrich-hatches ────────────────────────────────────────────
 
 async function cmdEnrichHatches(args: string[]) {
-  const regionFilter = args[0] ?? undefined;
+  const queryLimit = (() => {
+    const limitArg = args.find((a) => a.startsWith("--limit="));
+    return limitArg
+      ? parseInt(limitArg.split("=")[1]!, 10)
+      : HATCH_CHART_QUERIES.length;
+  })();
+  const waterFilter = args.find((a) => !a.startsWith("--")) ?? undefined;
 
-  // Fetch all water bodies (optionally filtered by region)
-  const where: Record<string, unknown> = {};
-  if (regionFilter) {
-    where.region = { contains: regionFilter, mode: "insensitive" };
-  }
+  const queries = waterFilter
+    ? [`${waterFilter} hatch chart fly fishing`]
+    : HATCH_CHART_QUERIES.slice(0, queryLimit);
 
-  const waterBodies = await prisma.waterBody.findMany({
-    where,
-    orderBy: [{ region: "asc" }, { name: "asc" }],
-  });
+  log.info(`Discovering hatch charts using ${queries.length} search queries`);
 
-  if (waterBodies.length === 0) {
-    log.info("No water bodies found. Add water bodies first with 'add-water-bodies'");
-    return;
-  }
-
-  log.info(`Enriching hatch data for ${waterBodies.length} water bodies`);
-
-  // Standard hatch data by region — this is the knowledge base for auto-generating hatches
-  const REGIONAL_HATCHES: Record<string, Array<{
-    month: number;
-    species: string;
-    insectName: string;
-    insectType: string;
-    patternName: string;
-    timeOfDay: string;
-    notes: string;
-    targetFish?: string;
-  }>> = {
-    "Rocky Mountains": [
-      { month: 1, species: "Chironomidae", insectName: "Midge", insectType: "midge", patternName: "Zebra Midge", timeOfDay: "midday", notes: "Winter midge fishing is often the only game in town. Fish small (size 20-24) near the bottom.", targetFish: "Rainbow Trout" },
-      { month: 2, species: "Chironomidae", insectName: "Midge", insectType: "midge", patternName: "Top Secret Midge", timeOfDay: "midday", notes: "Continue with midge patterns. Look for rising fish on warmer afternoons.", targetFish: "Brown Trout" },
-      { month: 3, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Pheasant Tail Nymph", timeOfDay: "afternoon", notes: "Spring BWO hatches begin on overcast days. Nymph before the hatch, switch to dries when fish start rising.", targetFish: "Rainbow Trout" },
-      { month: 4, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Blue-Winged Olive", timeOfDay: "afternoon", notes: "Peak spring BWO activity. Cloudy, drizzly days produce the best hatches.", targetFish: "Brown Trout" },
-      { month: 5, species: "Brachycentrus", insectName: "Mother's Day Caddis", insectType: "caddis", patternName: "Elk Hair Caddis", timeOfDay: "afternoon", notes: "The famous Mother's Day Caddis hatch brings explosive dry fly action. Fish the riffles and runs.", targetFish: "Rainbow Trout" },
-      { month: 6, species: "Drunella grandis", insectName: "Green Drake", insectType: "mayfly", patternName: "Green Drake", timeOfDay: "evening", notes: "The Green Drake hatch is one of the most anticipated events of the year. Big flies, big fish.", targetFish: "Brown Trout" },
-      { month: 6, species: "Pteronarcys californica", insectName: "Salmonfly", insectType: "stonefly", patternName: "Stimulator", timeOfDay: "afternoon", notes: "Salmonfly hatches move upstream as water temperatures warm. Follow the hatch front for best action.", targetFish: "Rainbow Trout" },
-      { month: 7, species: "Ephemerella", insectName: "Pale Morning Dun", insectType: "mayfly", patternName: "Pale Morning Dun", timeOfDay: "morning", notes: "PMD hatches provide consistent morning dry fly fishing throughout July.", targetFish: "Rainbow Trout" },
-      { month: 7, species: "Tricorythodes", insectName: "Trico", insectType: "mayfly", patternName: "Trico Spinner", timeOfDay: "morning", notes: "Early morning Trico spinner falls can produce incredible technical fishing. Tiny flies, size 20-24.", targetFish: "Brown Trout" },
-      { month: 8, species: "Tricorythodes", insectName: "Trico", insectType: "mayfly", patternName: "Trico Spinner", timeOfDay: "morning", notes: "Peak Trico season continues. Fish the spinner fall with a downstream presentation.", targetFish: "Brown Trout" },
-      { month: 8, species: "Orthoptera", insectName: "Grasshopper", insectType: "terrestrial", patternName: "Dave's Hopper", timeOfDay: "afternoon", notes: "Terrestrial season is in full swing. Slap hoppers against grassy banks for explosive strikes.", targetFish: "Rainbow Trout" },
-      { month: 9, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Blue-Winged Olive", timeOfDay: "afternoon", notes: "Fall BWO hatches begin again. Often the best dry fly fishing of the year on overcast days.", targetFish: "Brown Trout" },
-      { month: 10, species: "Dicosmoecus", insectName: "October Caddis", insectType: "caddis", patternName: "Stimulator", timeOfDay: "evening", notes: "Large October Caddis bring big fish to the surface. Fish size 6-10 orange stimulators.", targetFish: "Brown Trout" },
-      { month: 11, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Pheasant Tail Nymph", timeOfDay: "afternoon", notes: "Late season BWOs. Fishing pressure drops but hatches continue on warmer afternoons.", targetFish: "Brown Trout" },
-      { month: 12, species: "Chironomidae", insectName: "Midge", insectType: "midge", patternName: "Zebra Midge", timeOfDay: "midday", notes: "Midge season returns. Focus on tailwaters which stay fishable through winter.", targetFish: "Rainbow Trout" },
-    ],
-    "Northeast": [
-      { month: 3, species: "Chironomidae", insectName: "Midge", insectType: "midge", patternName: "Griffith's Gnat", timeOfDay: "midday", notes: "Early season midges signal the start of trout fishing. Focus on slower water.", targetFish: "Brown Trout" },
-      { month: 4, species: "Ephemerella subvaria", insectName: "Hendrickson", insectType: "mayfly", patternName: "Hendrickson", timeOfDay: "afternoon", notes: "The Hendrickson hatch is the first major mayfly event. Look for size 12-14 duns in the afternoon.", targetFish: "Brown Trout" },
-      { month: 5, species: "Stenonema vicarium", insectName: "March Brown", insectType: "mayfly", patternName: "March Brown", timeOfDay: "afternoon", notes: "Despite the name, March Browns hatch in May in the northeast. Big flies, size 10-12.", targetFish: "Brown Trout" },
-      { month: 5, species: "Brachycentrus", insectName: "Grannom Caddis", insectType: "caddis", patternName: "Elk Hair Caddis", timeOfDay: "afternoon", notes: "Thick caddis hatches provide fast fishing. Try a soft hackle swung on the downstream drift.", targetFish: "Rainbow Trout" },
-      { month: 6, species: "Ephemera guttulata", insectName: "Green Drake", insectType: "mayfly", patternName: "Green Drake", timeOfDay: "evening", notes: "The legendary eastern Green Drake hatch. Fish twilight for the biggest browns.", targetFish: "Brown Trout" },
-      { month: 6, species: "Stenacron", insectName: "Light Cahill", insectType: "mayfly", patternName: "Light Cahill", timeOfDay: "evening", notes: "Evening Light Cahill hatches provide reliable dry fly fishing through June.", targetFish: "Brown Trout" },
-      { month: 7, species: "Isonychia", insectName: "Isonychia (Slate Drake)", insectType: "mayfly", patternName: "Comparadun", timeOfDay: "evening", notes: "Slate Drakes are big, fast-swimming mayflies that produce exciting surface takes.", targetFish: "Brown Trout" },
-      { month: 8, species: "Tricorythodes", insectName: "Trico", insectType: "mayfly", patternName: "Trico Spinner", timeOfDay: "morning", notes: "Trico spinner falls create blanket rises. Technical fishing with tiny flies.", targetFish: "Brown Trout" },
-      { month: 9, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Blue-Winged Olive", timeOfDay: "afternoon", notes: "Fall BWO hatches are prolific in the northeast. Fish on overcast days.", targetFish: "Brown Trout" },
-      { month: 10, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Pheasant Tail Nymph", timeOfDay: "afternoon", notes: "Late fall BWO hatches. Some of the best dry fly fishing of the year.", targetFish: "Brown Trout" },
-    ],
-    "Pacific Northwest": [
-      { month: 3, species: "Skwala", insectName: "Skwala Stonefly", insectType: "stonefly", patternName: "Stimulator", timeOfDay: "midday", notes: "The Skwala hatch kicks off the season. Fish olive stonefly patterns size 8-10.", targetFish: "Rainbow Trout" },
-      { month: 5, species: "Drunella grandis", insectName: "Green Drake", insectType: "mayfly", patternName: "Green Drake", timeOfDay: "afternoon", notes: "Western Green Drake hatches can be phenomenal. Size 10-12 in green and olive.", targetFish: "Rainbow Trout" },
-      { month: 6, species: "Pteronarcys californica", insectName: "Salmonfly", insectType: "stonefly", patternName: "Stimulator", timeOfDay: "afternoon", notes: "Salmonfly hatches on the Deschutes and other rivers. Size 4-8 patterns fished tight to banks.", targetFish: "Rainbow Trout" },
-      { month: 7, species: "Ephemerella", insectName: "Pale Morning Dun", insectType: "mayfly", patternName: "Pale Morning Dun", timeOfDay: "morning", notes: "Prolific PMD hatches across PNW rivers. Standard sizes 14-18.", targetFish: "Rainbow Trout" },
-      { month: 10, species: "Dicosmoecus", insectName: "October Caddis", insectType: "caddis", patternName: "Stimulator", timeOfDay: "evening", notes: "October Caddis hatches are a highlight of fall fishing. Big orange flies, aggressive fish.", targetFish: "Steelhead" },
-    ],
-    "Mid-South": [
-      { month: 1, species: "Chironomidae", insectName: "Midge", insectType: "midge", patternName: "Zebra Midge", timeOfDay: "midday", notes: "Year-round midge fishing on tailwaters like the White River and South Holston.", targetFish: "Rainbow Trout" },
-      { month: 3, species: "Baetis", insectName: "Blue-Winged Olive", insectType: "mayfly", patternName: "Blue-Winged Olive", timeOfDay: "afternoon", notes: "Spring BWO hatches on southern tailwaters. Afternoon hatches are consistent.", targetFish: "Brown Trout" },
-      { month: 5, species: "Hydropsyche", insectName: "Spotted Sedge", insectType: "caddis", patternName: "Elk Hair Caddis", timeOfDay: "evening", notes: "Caddis hatches provide excellent dry fly fishing on warmer evenings.", targetFish: "Rainbow Trout" },
-      { month: 6, species: "Ephemerella", insectName: "Sulphur", insectType: "mayfly", patternName: "Sulphur Dun", timeOfDay: "evening", notes: "Sulphur hatches bring fish to the surface reliably. Fish size 16-18 in yellow.", targetFish: "Brown Trout" },
-    ],
-    "Saltwater": [
-      { month: 1, species: "Menippe mercenaria", insectName: "Crab", insectType: "other", patternName: "Permit Crab", timeOfDay: "all day", notes: "Winter permit fishing in the Keys. Sight-fish over turtle grass flats.", targetFish: "Permit" },
-      { month: 3, species: "Penaeus", insectName: "Shrimp", insectType: "other", patternName: "Crazy Charlie", timeOfDay: "morning", notes: "Spring bonefish season heats up. Fish shrimp patterns on rising tides over white sand flats.", targetFish: "Bonefish" },
-      { month: 5, species: "Engraulidae", insectName: "Baitfish", insectType: "other", patternName: "Lefty's Deceiver", timeOfDay: "morning", notes: "Tarpon season begins. Fish large baitfish patterns along migration routes.", targetFish: "Tarpon" },
-      { month: 7, species: "Engraulidae", insectName: "Baitfish", insectType: "other", patternName: "Clouser Minnow", timeOfDay: "morning", notes: "Summer inshore fishing for redfish, snook, and stripers. Match the local baitfish.", targetFish: "Redfish" },
-      { month: 10, species: "Callinectes sapidus", insectName: "Blue Crab", insectType: "other", patternName: "Merkin Crab", timeOfDay: "morning", notes: "Fall permit and bonefish opportunities. Crab patterns are essential.", targetFish: "Permit" },
-    ],
-  };
-
+  const seenUrls = new Set<string>();
   let totalAdded = 0;
   let totalSkipped = 0;
+  let totalRejected = 0;
 
-  for (let i = 0; i < waterBodies.length; i++) {
-    const wb = waterBodies[i]!;
-    console.log(progressBar(i + 1, waterBodies.length, wb.name));
+  // Step 1: Query-based search (Brave + Serper + preconfigured sites)
+  log.info("Step 1: Searching the web for hatch charts...");
 
-    // Find matching regional hatch data
-    const regionalData = REGIONAL_HATCHES[wb.region];
-    if (!regionalData) {
-      log.info(`No hatch templates for region: ${wb.region} (${wb.name})`);
-      continue;
-    }
+  for (let qi = 0; qi < queries.length; qi++) {
+    const query = queries[qi]!;
+    log.info(`  [${qi + 1}/${queries.length}] "${query}"`);
 
-    for (const hatch of regionalData) {
-      // Check for existing entry
-      const existing = await prisma.hatchEntry.findFirst({
-        where: {
-          waterBody: wb.name,
-          month: hatch.month,
-          insectName: hatch.insectName,
-        },
-      });
+    try {
+      const pages = await discoverHatchCharts(query);
+      const newPages = pages.filter((p) => !seenUrls.has(p.url));
+      for (const p of pages) seenUrls.add(p.url);
 
-      if (existing) {
-        totalSkipped++;
+      if (newPages.length === 0) {
+        log.info(`    No hatch chart pages found`);
         continue;
       }
 
-      // Try to link to a fly pattern by name
-      const linkedPattern = await prisma.flyPattern.findFirst({
-        where: { name: { contains: hatch.patternName, mode: "insensitive" } },
-        select: { id: true },
-      });
+      log.info(`    Found ${newPages.length} new pages (${pages.length - newPages.length} dupes skipped)`);
 
-      await prisma.hatchEntry.create({
-        data: {
-          waterBody: wb.name,
-          region: wb.region,
-          state: wb.state,
-          month: hatch.month,
-          species: hatch.species,
-          insectName: hatch.insectName,
-          insectType: hatch.insectType,
-          patternName: hatch.patternName,
-          flyPatternId: linkedPattern?.id ?? null,
-          timeOfDay: hatch.timeOfDay,
-          targetFish: hatch.targetFish ?? null,
-          notes: `${hatch.notes} (${wb.name}${wb.state ? `, ${wb.state}` : ""})`,
-        },
-      });
+      // Extract hatch data from each page with Claude
+      for (const page of newPages) {
+        try {
+          const entries = await extractHatchEntries([page]);
+          if (entries.length === 0) {
+            totalRejected++;
+            continue;
+          }
 
-      totalAdded++;
+          log.info(`    Extracted ${entries.length} hatch entries from: ${page.title}`);
+
+          for (const entry of entries) {
+            await saveHatchEntry(entry);
+          }
+        } catch (err) {
+          log.error(`    Extraction failed for: ${page.title}`, { error: String(err) });
+        }
+      }
+    } catch (err) {
+      log.warn(`  Query failed: "${query}"`, { error: String(err) });
     }
   }
 
-  log.success(`Hatch enrichment complete: ${totalAdded} entries added, ${totalSkipped} skipped (already existed)`);
+  // Step 2: Direct hatch chart pages (known fly shop URLs)
+  log.info("Step 2: Scraping direct hatch chart pages (fly shops, guides)...");
+  try {
+    const directPages = await scrapeDirectHatchPages();
+    const newDirect = directPages.filter((p) => !seenUrls.has(p.url));
+    for (const p of directPages) seenUrls.add(p.url);
 
-  // Summary
-  const regions = [...new Set(waterBodies.map((wb) => wb.region))];
-  log.info(`Regions processed: ${regions.join(", ")}`);
-  log.info(`Water bodies processed: ${waterBodies.length}`);
+    log.info(`  Found ${newDirect.length} direct hatch chart pages (${directPages.length - newDirect.length} dupes skipped)`);
+
+    for (const page of newDirect) {
+      try {
+        const entries = await extractHatchEntries([page]);
+        if (entries.length === 0) {
+          totalRejected++;
+          continue;
+        }
+
+        log.info(`  Extracted ${entries.length} hatch entries from: ${page.title}`);
+
+        for (const entry of entries) {
+          await saveHatchEntry(entry);
+        }
+      } catch (err) {
+        log.error(`  Extraction failed: ${page.title}`, { error: String(err) });
+      }
+    }
+  } catch (err) {
+    log.warn("Direct page scraping failed", { error: String(err) });
+  }
+
+  log.success(
+    `Hatch chart pipeline complete: ${totalAdded} entries added, ${totalSkipped} skipped (duplicates), ${totalRejected} pages rejected (not hatch charts)`
+  );
+
+  // Helper to save a single hatch entry with dedup + pattern linking
+  async function saveHatchEntry(entry: ExtractedHatchEntry) {
+    // Check for existing entry (dedup by waterBody + month + insectName)
+    const existing = await prisma.hatchEntry.findFirst({
+      where: {
+        waterBody: entry.waterBody,
+        month: entry.month,
+        insectName: entry.insectName,
+      },
+    });
+
+    if (existing) {
+      totalSkipped++;
+      return;
+    }
+
+    // Try to link to a fly pattern by name
+    const linkedPattern = await prisma.flyPattern.findFirst({
+      where: { name: { contains: entry.patternName, mode: "insensitive" } },
+      select: { id: true },
+    });
+
+    await prisma.hatchEntry.create({
+      data: {
+        waterBody: entry.waterBody,
+        region: entry.region,
+        state: entry.state,
+        month: entry.month,
+        species: entry.species,
+        insectName: entry.insectName,
+        insectType: entry.insectType,
+        patternName: entry.patternName,
+        flyPatternId: linkedPattern?.id ?? null,
+        timeOfDay: entry.timeOfDay,
+        targetFish: entry.targetFish,
+        notes: entry.notes,
+      },
+    });
+
+    totalAdded++;
+  }
 }
 
 // ─── COMMAND: import-water-bodies-csv ────────────────────────────────────
@@ -2065,7 +2064,13 @@ Commands:
   add-hatches <file|--inline>  Add hatch chart entries from JSON file or inline
   add-water-bodies <file|--inline>  Add water bodies from JSON
   import-water-bodies-csv <file>    Import water bodies from CSV file
-  enrich-hatches [region]      Auto-populate hatch data for water bodies
+  enrich-hatches [water] [--limit=N]
+                               Discover hatch charts from the web, extract
+                               per-waterway hatch data with Claude, and save
+                               to the database. Searches fly shops, guides,
+                               Brave, and Google for hatch chart pages.
+                               --limit=N controls how many search queries to
+                               run (default: all ${HATCH_CHART_QUERIES.length} queries)
   enrich [slugs...] [--dry-run] [--limit=N]
                                Enrich existing patterns with missing tying
                                steps, video resources, and materials
