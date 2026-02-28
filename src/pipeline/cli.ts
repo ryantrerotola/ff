@@ -756,10 +756,6 @@ async function cmdRun(args: string[]) {
   // Phase 4: Buy links — affiliate links for all materials
   await cmdBuyLinks([]);
 
-  // Phase 5: Enrich supporting data (techniques & hatches)
-  await cmdEnrichTechniques([]);
-  await cmdEnrichHatches([]);
-
   await cmdStatus();
 
   log.success("Full pipeline run complete");
