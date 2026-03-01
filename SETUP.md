@@ -1,6 +1,6 @@
-# FlyPatternDB — Complete Setup Guide
+# FlyArchive — Complete Setup Guide
 
-This guide walks you through setting up FlyPatternDB on your computer from scratch. No prior coding experience is required.
+This guide walks you through setting up FlyArchive on your computer from scratch. No prior coding experience is required.
 
 ---
 
@@ -58,7 +58,7 @@ PostgreSQL is the database that stores all the fly pattern data.
 2. Sign up with your GitHub account (or create one at https://github.com)
 3. Click **"New Project"**
 4. Enter these details:
-   - **Name:** `flypatterndb`
+   - **Name:** `flyarchive`
    - **Database Password:** Choose a strong password and **write it down**
    - **Region:** Pick the one closest to you
 5. Click **"Create new project"** and wait about 2 minutes
@@ -91,19 +91,19 @@ PostgreSQL is the database that stores all the fly pattern data.
 
 Your local connection string will be:
 ```
-postgresql://postgres:YOUR_PASSWORD@localhost:5432/flypatterndb
+postgresql://postgres:YOUR_PASSWORD@localhost:5432/flyarchive
 ```
 
 If using Postgres.app on macOS, it is:
 ```
-postgresql://localhost:5432/flypatterndb
+postgresql://localhost:5432/flyarchive
 ```
 
 **Create the database** (local install only):
 
 1. Open your terminal/command prompt
 2. Type: `psql -U postgres` (enter password if asked)
-3. Type: `CREATE DATABASE flypatterndb;`
+3. Type: `CREATE DATABASE flyarchive;`
 4. Type: `\q` to exit
 
 ---
@@ -114,8 +114,8 @@ postgresql://localhost:5432/flypatterndb
 
 If you have Git installed:
 ```
-git clone <your-repository-url> flypatterndb
-cd flypatterndb
+git clone <your-repository-url> flyarchive
+cd flyarchive
 ```
 
 ### Option B: Download ZIP
@@ -124,7 +124,7 @@ cd flypatterndb
 2. Extract/unzip it to a folder on your computer
 3. Open terminal/command prompt and navigate to that folder:
    ```
-   cd path/to/flypatterndb
+   cd path/to/flyarchive
    ```
 
 ---
@@ -138,7 +138,7 @@ cd flypatterndb
 3. Open the `.env` file in any text editor (Notepad, TextEdit, etc.)
 4. Replace the `DATABASE_URL` value with your actual database connection string from Step 2:
    ```
-   DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/flypatterndb"
+   DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/flyarchive"
    ```
 5. Save and close the file
 
@@ -201,7 +201,7 @@ You should see output like:
 
 1. Open your web browser (Chrome, Firefox, Safari, Edge)
 2. Go to: **http://localhost:3000**
-3. You should see the FlyPatternDB homepage with the four example fly patterns!
+3. You should see the FlyArchive homepage with the four example fly patterns!
 
 ---
 
@@ -214,7 +214,7 @@ In the terminal where it is running, press `Ctrl + C` (on both Windows and macOS
 ## How to Start It Again Later
 
 1. Open terminal/command prompt
-2. Navigate to the project folder: `cd path/to/flypatterndb`
+2. Navigate to the project folder: `cd path/to/flyarchive`
 3. Run: `npm run dev`
 4. Open http://localhost:3000 in your browser
 
@@ -244,7 +244,7 @@ Node.js is not installed or not in your system PATH. Restart your computer after
 ### "Cannot connect to database"
 - Make sure PostgreSQL is running
 - Double-check your `DATABASE_URL` in the `.env` file
-- Make sure the database `flypatterndb` exists (for local installs)
+- Make sure the database `flyarchive` exists (for local installs)
 
 ### "Port 3000 is already in use"
 Another application is using port 3000. Either close that application, or run:
@@ -261,7 +261,7 @@ Run `npm install` again to make sure all dependencies are installed.
 ## Project Structure
 
 ```
-flypatterndb/
+flyarchive/
 ├── prisma/
 │   ├── schema.prisma      # Database table definitions
 │   └── seed.ts             # Example data

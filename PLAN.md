@@ -1,4 +1,4 @@
-# FlyPatternDB: Improvements & Mobile Strategy Plan
+# FlyArchive: Improvements & Mobile Strategy Plan
 
 ## Current State
 

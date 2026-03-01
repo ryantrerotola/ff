@@ -1,4 +1,4 @@
--- Full-text search indexes for FlyPatternDB
+-- Full-text search indexes for FlyArchive
 -- Run this after `prisma db push` to add PostgreSQL full-text search capabilities.
 --
 -- Usage: psql $DATABASE_URL -f prisma/full-text-search.sql
