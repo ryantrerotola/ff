@@ -5,7 +5,7 @@ const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = parseInt(process.env.SMTP_PORT ?? "587");
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
-const EMAIL_FROM = process.env.EMAIL_FROM ?? `${APP_NAME} <noreply@flypatterndb.com>`;
+const EMAIL_FROM = process.env.EMAIL_FROM ?? `${APP_NAME} <noreply@flyarchive.com>`;
 
 function isEmailConfigured(): boolean {
   return !!(SMTP_HOST && SMTP_USER && SMTP_PASS);

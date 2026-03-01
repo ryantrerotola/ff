@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import {
   CATEGORY_LABELS,
   DIFFICULTY_LABELS,
@@ -11,6 +11,7 @@ import {
 export function PatternFilters() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const currentCategory = searchParams.get("category") ?? "";
   const currentDifficulty = searchParams.get("difficulty") ?? "";
@@ -34,19 +35,37 @@ export function PatternFilters() {
   return (
     <div className="mb-8 space-y-4">
       {/* Search bar */}
-      <div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (searchRef.current) {
+            updateParams("search", searchRef.current.value);
+          }
+        }}
+        className="relative"
+      >
         <label htmlFor="search" className="sr-only">
           Search patterns
         </label>
         <input
+          ref={searchRef}
           id="search"
           type="text"
           placeholder="Search fly patterns..."
           defaultValue={currentSearch}
           onChange={(e) => updateParams("search", e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 pr-12 text-gray-900 placeholder-gray-400 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
         />
-      </div>
+        <button
+          type="submit"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-brand-600 p-2 text-white transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+          aria-label="Search"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+        </button>
+      </form>
 
       {/* Filter dropdowns */}
       <div className="flex flex-wrap gap-4">

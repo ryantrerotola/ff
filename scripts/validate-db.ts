@@ -59,7 +59,7 @@ interface Issue {
 
 async function main() {
   console.log("╔══════════════════════════════════════════════════════════════╗");
-  console.log("║     FlyPatternDB — Supabase Data Completeness Validator    ║");
+  console.log("║     FlyArchive — Supabase Data Completeness Validator      ║");
   console.log("╚══════════════════════════════════════════════════════════════╝\n");
 
   const issues: Issue[] = [];

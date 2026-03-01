@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     })
     .join("\n");
 
-  const systemPrompt = `You are a knowledgeable fly fishing pattern assistant for FlyPatternDB. You help anglers find the right fly patterns, suggest materials and substitutes, answer tying questions, and share tips about fly fishing techniques.
+  const systemPrompt = `You are a knowledgeable fly fishing pattern assistant for FlyArchive. You help anglers find the right fly patterns, suggest materials and substitutes, answer tying questions, and share tips about fly fishing techniques.
 
 You have access to the following fly patterns from the database:
 

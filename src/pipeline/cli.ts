@@ -533,7 +533,7 @@ async function cmdStatus() {
   const stats = await getPipelineStats();
 
   console.log("\n┌─────────────────────────────────────────┐");
-  console.log("│         FlyPatternDB Pipeline Status     │");
+  console.log("│         FlyArchive Pipeline Status        │");
   console.log("├─────────────────────────────────────────┤");
   console.log(`│ Sources discovered:  ${String(stats.sources.discovered).padStart(8)} │`);
   console.log(`│ Sources scraped:     ${String(stats.sources.scraped).padStart(8)} │`);
@@ -2033,7 +2033,7 @@ async function main() {
 
   if (!command) {
     console.log(`
-FlyPatternDB Data Pipeline
+FlyArchive Data Pipeline
 
 Usage: tsx src/pipeline/cli.ts <command> [args]
 

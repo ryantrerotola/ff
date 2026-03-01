@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "FlyPatternDB — Fly Tying Pattern Database",
-    short_name: "FlyPatternDB",
+    name: "FlyArchive — Fly Tying Pattern Database",
+    short_name: "FlyArchive",
     description:
       "Free fly tying pattern database with community features. Browse patterns, materials, and instructional resources.",
     start_url: "/",
