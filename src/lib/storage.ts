@@ -9,7 +9,7 @@
  *   S3_BUCKET         - bucket name
  *   S3_ACCESS_KEY_ID  - access key
  *   S3_SECRET_ACCESS_KEY - secret key
- *   S3_PUBLIC_URL     - public-facing URL prefix, e.g., https://cdn.flypatterndb.com
+ *   S3_PUBLIC_URL     - public-facing URL prefix, e.g., https://cdn.flyarchive.com
  *
  * If not configured, uploads are stored locally in public/uploads/ as a fallback.
  */

@@ -22,7 +22,7 @@ interface SyncAction {
   createdAt: number;
 }
 
-interface FlyPatternDBSchema extends DBSchema {
+interface FlyArchiveSchema extends DBSchema {
   patterns: {
     key: string;
     value: OfflinePattern;
@@ -35,11 +35,11 @@ interface FlyPatternDBSchema extends DBSchema {
   };
 }
 
-let dbPromise: Promise<IDBPDatabase<FlyPatternDBSchema>> | null = null;
+let dbPromise: Promise<IDBPDatabase<FlyArchiveSchema>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<FlyPatternDBSchema>("flypatterndb-offline", 1, {
+    dbPromise = openDB<FlyArchiveSchema>("flyarchive-offline", 1, {
       upgrade(db) {
         const patternStore = db.createObjectStore("patterns", {
           keyPath: "id",

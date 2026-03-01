@@ -3,20 +3,20 @@ import { resolveAppUrl } from "./constants";
 
 describe("resolveAppUrl", () => {
   it("returns NEXT_PUBLIC_APP_URL origin when it already includes protocol", () => {
-    expect(resolveAppUrl("https://flypatterndb.vercel.app/path", undefined)).toBe(
-      "https://flypatterndb.vercel.app",
+    expect(resolveAppUrl("https://flyarchive.vercel.app/path", undefined)).toBe(
+      "https://flyarchive.vercel.app",
     );
   });
 
   it("adds https protocol when missing", () => {
-    expect(resolveAppUrl("flypatterndb.vercel.app", undefined)).toBe(
-      "https://flypatterndb.vercel.app",
+    expect(resolveAppUrl("flyarchive.vercel.app", undefined)).toBe(
+      "https://flyarchive.vercel.app",
     );
   });
 
   it("falls back to VERCEL_URL when NEXT_PUBLIC_APP_URL is unset", () => {
-    expect(resolveAppUrl(undefined, "flypatterndb-git-main.vercel.app")).toBe(
-      "https://flypatterndb-git-main.vercel.app",
+    expect(resolveAppUrl(undefined, "flyarchive-git-main.vercel.app")).toBe(
+      "https://flyarchive-git-main.vercel.app",
     );
   });
 

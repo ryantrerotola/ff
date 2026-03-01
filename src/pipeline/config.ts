@@ -19,7 +19,7 @@ export const PIPELINE_CONFIG = {
     concurrency: parseInt(process.env.PIPELINE_CONCURRENCY ?? "5", 10),
     requestDelayMs: 1000,
     userAgent:
-      "FlyPatternDB/1.0 (fly pattern database; educational use)",
+      "FlyArchive/1.0 (fly pattern database; educational use)",
     timeoutMs: 15000,
   },
   normalization: {

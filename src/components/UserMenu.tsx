@@ -18,16 +18,17 @@ export default function UserMenu() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => (res.ok ? res.json() : { user: null }))
+    fetch("/api/auth/me", { credentials: "include", cache: "no-store" })
+      .then((res) => res.json())
       .then((data) => {
-        setUser(data.user);
+        setUser(data.user ?? null);
         if (data.user) {
-          fetch("/api/notifications")
+          fetch("/api/notifications", { credentials: "include" })
             .then((r) => (r.ok ? r.json() : { unreadCount: 0 }))
             .then((n) => setUnreadCount(n.unreadCount ?? 0));
         }
       })
+      .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
 

@@ -101,7 +101,7 @@ function main() {
   const data: ValidationDump = JSON.parse(raw!);
 
   console.log("╔══════════════════════════════════════════════════════════════╗");
-  console.log("║       FlyPatternDB — Pattern Completeness Report            ║");
+  console.log("║       FlyArchive — Pattern Completeness Report               ║");
   console.log("╚══════════════════════════════════════════════════════════════╝\n");
   console.log(`  Data exported: ${data.exportedAt}`);
   console.log(`  Patterns in DB: ${data.patterns.length}`);

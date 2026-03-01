@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+const FULL_MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
@@ -32,16 +37,18 @@ interface Filters {
   targetFish: string[];
 }
 
+type GroupedByWater = Record<string, { state: string | null; region: string; entries: HatchEntry[] }>;
+
 export default function HatchPage() {
   const [entries, setEntries] = useState<HatchEntry[]>([]);
   const [filters, setFilters] = useState<Filters>({ regions: [], waterBodies: [], species: [], targetFish: [] });
   const [loading, setLoading] = useState(true);
   const [waterBody, setWaterBody] = useState("");
   const [region, setRegion] = useState("");
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [species, setSpecies] = useState("");
+  const [month, setMonth] = useState(0); // 0 = all months
   const [targetFish, setTargetFish] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [expandedWater, setExpandedWater] = useState<string | null>(null);
 
   function fetchEntries() {
     setLoading(true);
@@ -49,7 +56,6 @@ export default function HatchPage() {
     if (waterBody) params.set("waterBody", waterBody);
     if (region) params.set("region", region);
     if (month) params.set("month", String(month));
-    if (species) params.set("species", species);
     if (targetFish) params.set("targetFish", targetFish);
 
     fetch(`/api/hatch?${params}`)
@@ -71,13 +77,23 @@ export default function HatchPage() {
     fetchEntries();
   }
 
+  // Group entries by water body
+  const grouped: GroupedByWater = {};
+  for (const entry of entries) {
+    if (!grouped[entry.waterBody]) {
+      grouped[entry.waterBody] = { state: entry.state, region: entry.region, entries: [] };
+    }
+    grouped[entry.waterBody]!.entries.push(entry);
+  }
+  const waterBodies = Object.keys(grouped).sort();
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Hatch Chart</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Hatch Charts</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Find what&apos;s hatching on your water. Filter by location, month, species, or target fish.
+            Look up any body of water to see what hatches when. Filter by time of year.
           </p>
         </div>
         <button
@@ -88,17 +104,16 @@ export default function HatchPage() {
         </button>
       </div>
 
-      {/* Submission form */}
       {showForm && <HatchForm filters={filters} onSuccess={() => { setShowForm(false); fetchEntries(); }} />}
 
       {/* Filters */}
-      <form onSubmit={handleSearch} className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <form onSubmit={handleSearch} className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <input
           value={waterBody}
           onChange={(e) => setWaterBody(e.target.value)}
-          placeholder="Water body..."
+          placeholder="Search water body..."
           list="waterBodies"
-          className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="col-span-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:col-span-1"
         />
         <datalist id="waterBodies">
           {filters.waterBodies.map((w) => <option key={w} value={w} />)}
@@ -118,16 +133,8 @@ export default function HatchPage() {
           onChange={(e) => setMonth(Number(e.target.value))}
           className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         >
-          {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-        </select>
-
-        <select
-          value={species}
-          onChange={(e) => setSpecies(e.target.value)}
-          className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-        >
-          <option value="">All Insects</option>
-          {filters.species.map((s) => <option key={s} value={s}>{s}</option>)}
+          <option value={0}>All Months</option>
+          {FULL_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
         </select>
 
         <select
@@ -147,57 +154,125 @@ export default function HatchPage() {
         </button>
       </form>
 
-      {/* Results */}
+      {/* Results — grouped by water body */}
       {loading ? (
         <div className="mt-8 space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-16 animate-pulse rounded-md bg-gray-100 dark:bg-gray-800" />)}
+          {[1, 2, 3].map((i) => <div key={i} className="h-20 animate-pulse rounded-md bg-gray-100 dark:bg-gray-800" />)}
         </div>
-      ) : entries.length === 0 ? (
+      ) : waterBodies.length === 0 ? (
         <div className="mt-12 text-center text-gray-500 dark:text-gray-400">
           <p>No hatch data found for those filters.</p>
-          <p className="mt-1 text-sm">Be the first to add a report!</p>
+          <p className="mt-1 text-sm">Try broadening your search or be the first to add a report.</p>
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 dark:border-gray-700 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              <tr>
-                <th className="px-3 py-2">Water Body</th>
-                <th className="px-3 py-2">Month</th>
-                <th className="px-3 py-2">Insect</th>
-                <th className="px-3 py-2">Hatch</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Pattern</th>
-                <th className="px-3 py-2">Fish</th>
-                <th className="px-3 py-2">Time</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {entries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <td className="px-3 py-2.5 font-medium text-gray-900 dark:text-white">
-                    {entry.waterBody}
-                    {entry.state && <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">{entry.state}</span>}
-                  </td>
-                  <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400">{MONTHS[entry.month - 1]}</td>
-                  <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400">{entry.species}</td>
-                  <td className="px-3 py-2.5 font-medium text-gray-900 dark:text-white">{entry.insectName}</td>
-                  <td className="px-3 py-2.5 capitalize text-gray-500 dark:text-gray-400">{entry.insectType}</td>
-                  <td className="px-3 py-2.5">
-                    {entry.flyPattern ? (
-                      <Link href={`/patterns/${entry.flyPattern.slug}`} className="text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
-                        {entry.flyPattern.name}
-                      </Link>
-                    ) : (
-                      <span className="text-gray-600 dark:text-gray-400">{entry.patternName}</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400">{entry.targetFish ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-gray-500 dark:text-gray-400">{entry.timeOfDay ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-6 space-y-3">
+          {waterBodies.map((wb) => {
+            const group = grouped[wb]!;
+            const isExpanded = expandedWater === wb;
+
+            // Group entries by month for the expanded view
+            const byMonth: Record<number, HatchEntry[]> = {};
+            for (const e of group.entries) {
+              if (!byMonth[e.month]) byMonth[e.month] = [];
+              byMonth[e.month]!.push(e);
+            }
+            const activeMonths = Object.keys(byMonth).map(Number).sort((a, b) => a - b);
+
+            // Summary: unique insect types for the collapsed preview
+            const insectTypes = [...new Set(group.entries.map((e) => e.insectType))];
+            const monthRange = activeMonths.length > 0
+              ? `${MONTHS[activeMonths[0]! - 1]}–${MONTHS[activeMonths[activeMonths.length - 1]! - 1]}`
+              : "";
+
+            return (
+              <div
+                key={wb}
+                className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+              >
+                {/* Water body header — always visible */}
+                <button
+                  onClick={() => setExpandedWater(isExpanded ? null : wb)}
+                  className="flex w-full items-center justify-between px-4 py-3 text-left"
+                >
+                  <div className="min-w-0">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate">
+                      {wb}
+                      {group.state && <span className="ml-1.5 text-sm font-normal text-gray-400">{group.state}</span>}
+                    </h3>
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {group.region}
+                      {monthRange && <span className="mx-1.5">·</span>}
+                      {monthRange}
+                      <span className="mx-1.5">·</span>
+                      {group.entries.length} {group.entries.length === 1 ? "hatch" : "hatches"}
+                      <span className="mx-1.5">·</span>
+                      {insectTypes.map((t) => t.charAt(0).toUpperCase() + t.slice(1)).join(", ")}
+                    </p>
+                  </div>
+                  <svg
+                    className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </button>
+
+                {/* Expanded: hatches grouped by month */}
+                {isExpanded && (
+                  <div className="border-t border-gray-100 dark:border-gray-700 px-4 pb-4">
+                    {activeMonths.map((m) => (
+                      <div key={m} className="mt-3">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+                          {FULL_MONTHS[m - 1]}
+                        </h4>
+                        <div className="mt-1.5 space-y-1.5">
+                          {byMonth[m]!.map((entry) => (
+                            <div
+                              key={entry.id}
+                              className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-gray-900"
+                            >
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {entry.insectName}
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {entry.species}
+                              </span>
+                              <span className="inline-block rounded-full bg-gray-200 px-2 py-0.5 text-xs capitalize text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                {entry.insectType}
+                              </span>
+                              <span className="text-gray-400 dark:text-gray-500">→</span>
+                              {entry.flyPattern ? (
+                                <Link
+                                  href={`/patterns/${entry.flyPattern.slug}`}
+                                  className="font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                                >
+                                  {entry.flyPattern.name}
+                                </Link>
+                              ) : (
+                                <span className="font-medium text-gray-700 dark:text-gray-300">{entry.patternName}</span>
+                              )}
+                              {entry.timeOfDay && (
+                                <span className="text-xs text-gray-400 dark:text-gray-500">{entry.timeOfDay}</span>
+                              )}
+                              {entry.targetFish && (
+                                <span className="text-xs text-gray-400 dark:text-gray-500">· {entry.targetFish}</span>
+                              )}
+                              {entry.notes && (
+                                <p className="basis-full text-xs text-gray-400 dark:text-gray-500 mt-0.5">{entry.notes}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -254,7 +329,7 @@ function HatchForm({ filters, onSuccess }: { filters: Filters; onSuccess: () => 
         <input name="region" required placeholder="Region *" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm" />
         <input name="state" placeholder="State (optional)" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm" />
         <select name="month" required defaultValue={new Date().getMonth() + 1} className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm">
-          {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+          {FULL_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
         </select>
         <input name="species" required placeholder="Insect species *" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm" />
         <input name="insectName" required placeholder="Hatch name *" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm" />

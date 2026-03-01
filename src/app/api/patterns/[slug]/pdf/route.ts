@@ -116,7 +116,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   ${variationsHtml}
 
   <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af; text-align: center;">
-    Generated from ${APP_NAME} &bull; flypatterndb.com
+    Generated from ${APP_NAME} &bull; flyarchive.com
   </div>
 </body>
 </html>`;
