@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
         flyPattern: { select: { id: true, name: true, slug: true } },
         submittedBy: { select: { username: true, displayName: true } },
       },
-      orderBy: [{ month: "asc" }, { insectName: "asc" }],
-      take: 100,
+      orderBy: [{ waterBody: "asc" }, { month: "asc" }, { insectName: "asc" }],
+      take: 200,
     }),
   );
 
