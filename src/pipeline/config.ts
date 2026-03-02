@@ -3,9 +3,10 @@ export const PIPELINE_CONFIG = {
     apiKey: process.env.YOUTUBE_API_KEY ?? "",
     maxResultsPerQuery: 10,
     searchQueries: [
+      "{pattern} fly tying",
       "how to tie {pattern} fly",
       "{pattern} fly tying tutorial",
-      "{pattern} fly pattern recipe",
+      "{pattern} fly pattern",
     ],
     quotaCostPerSearch: 100,
     dailyQuotaLimit: 10000,

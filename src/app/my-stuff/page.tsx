@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma, withRetry } from "@/lib/prisma";
 import { CATEGORY_LABELS, DIFFICULTY_LABELS } from "@/lib/constants";
+import { SubmissionToast } from "./SubmissionToast";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +12,13 @@ export const metadata: Metadata = {
   title: "My Stuff",
 };
 
-export default async function MyStuffPage() {
+interface MyStuffPageProps {
+  searchParams: Promise<{ submitted?: string }>;
+}
+
+export default async function MyStuffPage({ searchParams }: MyStuffPageProps) {
   const user = await getCurrentUser();
+  const { submitted } = await searchParams;
 
   if (!user) {
     redirect("/login");
@@ -81,27 +87,38 @@ export default async function MyStuffPage() {
         </Link>
       </div>
 
+      {submitted && <SubmissionToast />}
+
       {/* Quick Stats */}
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+        <Link
+          href="/my-stuff/saved"
+          className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/10"
+        >
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {savedPatterns.length}
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400">Saved Patterns</div>
-        </div>
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+        </Link>
+        <Link
+          href="/my-stuff/likes"
+          className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/10"
+        >
           <div className="text-2xl font-bold text-gray-900 dark:text-white">{likeCount}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400">Likes Given</div>
-        </div>
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+        </Link>
+        <Link
+          href="/my-stuff/submissions"
+          className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/10"
+        >
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {submissions.length}
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400">Submissions</div>
-        </div>
+        </Link>
         <Link
           href="/messages"
-          className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center hover:border-brand-300"
+          className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/10"
         >
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {unreadMessages}

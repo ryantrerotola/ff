@@ -33,48 +33,59 @@ interface HatchEntry {
 interface Filters {
   regions: string[];
   waterBodies: string[];
-  species: string[];
-  targetFish: string[];
 }
 
 type GroupedByWater = Record<string, { state: string | null; region: string; entries: HatchEntry[] }>;
 
 export default function HatchPage() {
   const [entries, setEntries] = useState<HatchEntry[]>([]);
-  const [filters, setFilters] = useState<Filters>({ regions: [], waterBodies: [], species: [], targetFish: [] });
+  const [filters, setFilters] = useState<Filters>({ regions: [], waterBodies: [] });
   const [loading, setLoading] = useState(true);
   const [waterBody, setWaterBody] = useState("");
   const [region, setRegion] = useState("");
   const [month, setMonth] = useState(0); // 0 = all months
-  const [targetFish, setTargetFish] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalWaterBodies, setTotalWaterBodies] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [expandedWater, setExpandedWater] = useState<string | null>(null);
 
-  function fetchEntries() {
+  function fetchEntries(pageNum = page) {
     setLoading(true);
     const params = new URLSearchParams();
     if (waterBody) params.set("waterBody", waterBody);
     if (region) params.set("region", region);
     if (month) params.set("month", String(month));
-    if (targetFish) params.set("targetFish", targetFish);
+    params.set("page", String(pageNum));
 
     fetch(`/api/hatch?${params}`)
       .then((r) => r.json())
       .then((data) => {
         setEntries(data.entries);
         setFilters(data.filters);
+        setPage(data.page);
+        setTotalPages(data.totalPages);
+        setTotalWaterBodies(data.totalWaterBodies);
       })
       .finally(() => setLoading(false));
   }
 
   useEffect(() => {
-    fetchEntries();
+    fetchEntries(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    fetchEntries();
+    setPage(1);
+    fetchEntries(1);
+  }
+
+  function goToPage(p: number) {
+    setExpandedWater(null);
+    setPage(p);
+    fetchEntries(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   // Group entries by water body
@@ -104,10 +115,10 @@ export default function HatchPage() {
         </button>
       </div>
 
-      {showForm && <HatchForm filters={filters} onSuccess={() => { setShowForm(false); fetchEntries(); }} />}
+      {showForm && <HatchForm onSuccess={() => { setShowForm(false); fetchEntries(1); }} />}
 
       {/* Filters */}
-      <form onSubmit={handleSearch} className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <form onSubmit={handleSearch} className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <input
           value={waterBody}
           onChange={(e) => setWaterBody(e.target.value)}
@@ -135,15 +146,6 @@ export default function HatchPage() {
         >
           <option value={0}>All Months</option>
           {FULL_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-        </select>
-
-        <select
-          value={targetFish}
-          onChange={(e) => setTargetFish(e.target.value)}
-          className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-        >
-          <option value="">All Fish</option>
-          {filters.targetFish.map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
 
         <button
@@ -273,13 +275,38 @@ export default function HatchPage() {
               </div>
             );
           })}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-between">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {totalWaterBodies} water {totalWaterBodies === 1 ? "body" : "bodies"} &middot; Page {page} of {totalPages}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page <= 1}
+                  className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page >= totalPages}
+                  className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function HatchForm({ filters, onSuccess }: { filters: Filters; onSuccess: () => void }) {
+function HatchForm({ onSuccess }: { onSuccess: () => void }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -360,10 +387,6 @@ function HatchForm({ filters, onSuccess }: { filters: Filters; onSuccess: () => 
           <option value="Redfish">Redfish</option>
           <option value="Pike">Pike</option>
           <option value="Musky">Musky</option>
-          {filters.targetFish
-            .filter((f) => !["Rainbow Trout","Brown Trout","Brook Trout","Cutthroat Trout","Steelhead","Salmon","Smallmouth Bass","Largemouth Bass","Panfish","Carp","Bonefish","Tarpon","Redfish","Pike","Musky"].includes(f))
-            .map((f) => <option key={f} value={f}>{f}</option>)
-          }
         </select>
         <select name="timeOfDay" className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm">
           <option value="">Time of day</option>

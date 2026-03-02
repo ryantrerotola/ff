@@ -86,7 +86,7 @@ function YouTubeEmbed({ resource }: { resource: Resource }) {
       <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
         <iframe
           className="absolute inset-0 h-full w-full"
-          src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0`}
+          src={`https://www.youtube.com/embed/${videoId}?rel=0`}
           title={resource.title}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           referrerPolicy="strict-origin-when-cross-origin"

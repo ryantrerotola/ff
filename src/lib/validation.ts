@@ -86,6 +86,14 @@ export const submitPatternSchema = z.object({
       required: z.boolean().optional().default(true),
     }),
   ),
+  videoUrls: z.array(z.string().url().max(500)).max(5).optional().default([]),
+  tyingSteps: z.array(
+    z.object({
+      title: z.string().min(1).max(200),
+      instruction: z.string().min(1).max(2000),
+      tip: z.string().max(500).optional(),
+    }),
+  ).max(30).optional().default([]),
 });
 
 // ─── Password reset schemas ────────────────────────────────────────────────

@@ -846,6 +846,7 @@ async function main() {
       { name: "Materials & Tools", slug: "materials-tools", description: "Discuss materials, tools, and equipment.", sortOrder: 3 },
       { name: "Show & Tell", slug: "show-and-tell", description: "Share photos of your tied flies!", sortOrder: 4 },
       { name: "Fishing Reports", slug: "fishing-reports", description: "Share what's working on the water.", sortOrder: 5 },
+      { name: "Gear Reviews", slug: "gear-reviews", description: "Review and discuss rods, reels, waders, vises, and other gear.", sortOrder: 6 },
     ],
   });
 

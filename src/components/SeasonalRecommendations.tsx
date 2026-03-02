@@ -68,13 +68,13 @@ export function SeasonalRecommendations() {
 
   const currentMonth = new Date().getMonth() + 1;
 
-  // Step 1: Try to get user location
-  useEffect(() => {
+  function requestLocation() {
     if (!navigator.geolocation) {
       setLocationStatus("error");
       return;
     }
 
+    setLocationStatus("loading");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const detected = detectRegion(pos.coords.latitude, pos.coords.longitude);
@@ -86,6 +86,12 @@ export function SeasonalRecommendations() {
       },
       { timeout: 5000, enableHighAccuracy: false }
     );
+  }
+
+  // Step 1: Try to get user location on mount
+  useEffect(() => {
+    requestLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Step 2: Fetch hatches once location is resolved (or failed)
@@ -126,7 +132,7 @@ export function SeasonalRecommendations() {
           : `Recommended patterns for ${MONTH_NAMES[currentMonth - 1]}`}
         {locationStatus === "denied" && (
           <span className="ml-1">
-            · <button onClick={() => setRegion(null)} className="text-brand-600 hover:text-brand-700 dark:text-brand-400">Enable location</button> for local results
+            · <button onClick={requestLocation} className="text-brand-600 hover:text-brand-700 dark:text-brand-400">Enable location</button> for local results
           </span>
         )}
       </p>

@@ -47,6 +47,11 @@ export async function generateMetadata({
   }
 }
 
+/** Title-case a string: capitalize the first letter of each word. */
+function titleCase(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 const DIFFICULTY_BADGE_COLORS: Record<string, string> = {
   beginner:
     "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
@@ -199,7 +204,7 @@ export default async function TechniquePage({ params }: TechniquePageProps) {
           {/* Header */}
           <header>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white sm:text-4xl">
-              {technique.name}
+              {titleCase(technique.name)}
             </h1>
 
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -416,7 +421,7 @@ export default async function TechniquePage({ params }: TechniquePageProps) {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <span className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400">
-                            {related.name}
+                            {titleCase(related.name)}
                           </span>
                           <span
                             className={`inline-flex flex-shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${relBadge}`}

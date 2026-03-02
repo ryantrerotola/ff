@@ -45,6 +45,12 @@ interface MaterialInput {
   size: string;
 }
 
+interface TyingStepInput {
+  title: string;
+  instruction: string;
+  tip: string;
+}
+
 export default function SubmitPatternPage() {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -52,6 +58,8 @@ export default function SubmitPatternPage() {
   const [materials, setMaterials] = useState<MaterialInput[]>([
     { type: "hook", name: "", color: "", size: "" },
   ]);
+  const [videoUrls, setVideoUrls] = useState<string[]>([""]);
+  const [tyingSteps, setTyingSteps] = useState<TyingStepInput[]>([]);
 
   function addMaterial() {
     setMaterials((prev) => [
@@ -98,6 +106,14 @@ export default function SubmitPatternPage() {
             ...(m.color ? { color: m.color } : {}),
             ...(m.size ? { size: m.size } : {}),
           })),
+        videoUrls: videoUrls.filter((u) => u.trim()),
+        tyingSteps: tyingSteps
+          .filter((s) => s.title.trim() && s.instruction.trim())
+          .map((s) => ({
+            title: s.title,
+            instruction: s.instruction,
+            ...(s.tip ? { tip: s.tip } : {}),
+          })),
       }),
     });
 
@@ -112,7 +128,7 @@ export default function SubmitPatternPage() {
       return;
     }
 
-    router.push("/");
+    router.push("/my-stuff?submitted=1");
   }
 
   return (
@@ -310,6 +326,148 @@ export default function SubmitPatternPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Video URLs */}
+        <div>
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Video Links <span className="font-normal text-gray-400">(optional)</span>
+            </label>
+            {videoUrls.length < 5 && (
+              <button
+                type="button"
+                onClick={() => setVideoUrls((prev) => [...prev, ""])}
+                className="text-sm text-brand-600 hover:text-brand-700"
+              >
+                + Add Video
+              </button>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            YouTube or other video URLs showing how to tie this pattern.
+          </p>
+          <div className="mt-2 space-y-2">
+            {videoUrls.map((url, idx) => (
+              <div key={idx} className="flex gap-2">
+                <input
+                  value={url}
+                  onChange={(e) =>
+                    setVideoUrls((prev) =>
+                      prev.map((u, i) => (i === idx ? e.target.value : u)),
+                    )
+                  }
+                  placeholder="https://youtube.com/watch?v=..."
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                />
+                {videoUrls.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVideoUrls((prev) => prev.filter((_, i) => i !== idx))
+                    }
+                    className="text-gray-400 hover:text-red-500"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Tying Steps */}
+        <div>
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              How-To Steps <span className="font-normal text-gray-400">(optional)</span>
+            </label>
+            <button
+              type="button"
+              onClick={() =>
+                setTyingSteps((prev) => [
+                  ...prev,
+                  { title: "", instruction: "", tip: "" },
+                ])
+              }
+              className="text-sm text-brand-600 hover:text-brand-700"
+            >
+              + Add Step
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            Step-by-step instructions for tying this pattern.
+          </p>
+          {tyingSteps.length > 0 && (
+            <div className="mt-3 space-y-4">
+              {tyingSteps.map((step, idx) => (
+                <div
+                  key={idx}
+                  className="rounded-md border border-gray-200 dark:border-gray-700 p-3"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                      Step {idx + 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTyingSteps((prev) =>
+                          prev.filter((_, i) => i !== idx),
+                        )
+                      }
+                      className="text-gray-400 hover:text-red-500"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <input
+                    value={step.title}
+                    onChange={(e) =>
+                      setTyingSteps((prev) =>
+                        prev.map((s, i) =>
+                          i === idx ? { ...s, title: e.target.value } : s,
+                        ),
+                      )
+                    }
+                    placeholder="Step title (e.g., Attach Thread)"
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  />
+                  <textarea
+                    value={step.instruction}
+                    onChange={(e) =>
+                      setTyingSteps((prev) =>
+                        prev.map((s, i) =>
+                          i === idx
+                            ? { ...s, instruction: e.target.value }
+                            : s,
+                        ),
+                      )
+                    }
+                    placeholder="Detailed instruction..."
+                    rows={2}
+                    className="mt-2 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  />
+                  <input
+                    value={step.tip}
+                    onChange={(e) =>
+                      setTyingSteps((prev) =>
+                        prev.map((s, i) =>
+                          i === idx ? { ...s, tip: e.target.value } : s,
+                        ),
+                      )
+                    }
+                    placeholder="Pro tip (optional)"
+                    className="mt-2 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3">
