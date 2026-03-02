@@ -12,13 +12,8 @@ export const metadata: Metadata = {
   title: "My Stuff",
 };
 
-interface MyStuffPageProps {
-  searchParams: Promise<{ submitted?: string }>;
-}
-
-export default async function MyStuffPage({ searchParams }: MyStuffPageProps) {
+export default async function MyStuffPage() {
   const user = await getCurrentUser();
-  const { submitted } = await searchParams;
 
   if (!user) {
     redirect("/login");
@@ -87,7 +82,7 @@ export default async function MyStuffPage({ searchParams }: MyStuffPageProps) {
         </Link>
       </div>
 
-      {submitted && <SubmissionToast />}
+      <SubmissionToast />
 
       {/* Quick Stats */}
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">

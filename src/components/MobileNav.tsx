@@ -106,7 +106,7 @@ export function MobileNav() {
     }`;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 lg:hidden">
       <div className="safe-bottom mx-auto flex max-w-lg items-center justify-around px-2 py-1">
         {PRIMARY_ITEMS.map((item) => (
           <Link

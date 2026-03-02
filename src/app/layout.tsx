@@ -77,60 +77,60 @@ export default function RootLayout({
                   {APP_NAME}
                 </span>
               </Link>
-              <nav className="hidden items-center gap-4 md:flex">
+              <nav className="hidden items-center gap-2 lg:flex xl:gap-4">
                 <Link
                   href="/"
-                  className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  className="flex min-h-[44px] items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                 >
                   Patterns
                 </Link>
                 <Link
                   href="/news"
-                  className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  className="flex min-h-[44px] items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                 >
                   News
                 </Link>
                 <Link
                   href="/forum"
-                  className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  className="flex min-h-[44px] items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                 >
                   Forum
                 </Link>
                 <Link
                   href="/hatch"
-                  className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  className="flex min-h-[44px] items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                 >
-                  Hatch Chart
+                  Hatches
                 </Link>
                 <Link
                   href="/reports"
-                  className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  className="flex min-h-[44px] items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                 >
                   Reports
                 </Link>
                 <Link
                   href="/learn"
-                  className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  className="flex min-h-[44px] items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                 >
                   Techniques
                 </Link>
                 <Link
                   href="/fly-box"
-                  className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  className="flex min-h-[44px] items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                 >
                   Fly Box
                 </Link>
                 <UserMenu />
               </nav>
-              <div className="md:hidden">
+              <div className="lg:hidden">
                 <UserMenu />
               </div>
             </div>
           </header>
 
-          <main className="flex-1 pb-16 md:pb-0">{children}</main>
+          <main className="flex-1 pb-16 lg:pb-0">{children}</main>
 
-          <footer className="hidden border-t border-gray-200 bg-white print:hidden dark:border-gray-800 dark:bg-gray-900 md:block">
+          <footer className="hidden border-t border-gray-200 bg-white print:hidden dark:border-gray-800 dark:bg-gray-900 lg:block">
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
               <div className="text-center text-sm text-gray-500 dark:text-gray-400">
                 <p>
