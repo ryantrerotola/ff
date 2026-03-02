@@ -2,8 +2,7 @@ export const PIPELINE_CONFIG = {
   youtube: {
     maxResultsPerQuery: 10,
     searchQueries: [
-      "site:youtube.com {pattern} fly tying tutorial",
-      "site:youtube.com how to tie {pattern} fly",
+      "site:youtube.com {pattern} fly tying tutorial how to tie",
     ],
   },
   anthropic: {

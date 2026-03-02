@@ -12,8 +12,7 @@ const BRAVE_WEB_API = "https://api.search.brave.com/res/v1/web/search";
  * Search queries for discovering technique tutorial videos.
  */
 const SEARCH_TEMPLATES = [
-  "site:youtube.com fly tying {technique} tutorial",
-  "site:youtube.com how to {technique} fly tying",
+  "site:youtube.com {technique} fly tying tutorial how to",
 ];
 
 /**
