@@ -12,7 +12,7 @@ const rateLimit = createRateLimiter(250);
 export interface DiscoveredImage {
   url: string;
   caption: string;
-  source: "brave" | "serper" | "youtube_thumb" | "wikimedia" | "blog_scrape";
+  source: "brave" | "serper" | "youtube_thumb" | "wikimedia" | "blog_scrape" | "fly_shop";
   relevanceScore: number;
 }
 
@@ -518,6 +518,126 @@ function extractImagesFromHtml(
   });
 }
 
+// ─── Fly Shop Product Image Scraping ─────────────────────────────────────────
+
+/**
+ * Fly shops that sell fly patterns — their product images are the most reliable
+ * source for correct pattern photos since they show exactly what you get.
+ */
+const FLY_SHOP_SITES = [
+  {
+    name: "The Fly Crate",
+    searchUrl: (q: string) =>
+      `https://theflycrate.com/search?q=${encodeURIComponent(q)}`,
+    productSelector: ".product-card a[href], .grid-item a[href]",
+    imageSelector: ".product-single__photo img, .product__image img, .product-featured-image img",
+  },
+  {
+    name: "Umpqua Feather Merchants",
+    searchUrl: (q: string) =>
+      `https://www.umpqua.com/search?q=${encodeURIComponent(q)}`,
+    productSelector: ".product-card a[href], .grid-product a[href]",
+    imageSelector: ".product-single__media img, .product__main-image img",
+  },
+  {
+    name: "MFC - Montana Fly Company",
+    searchUrl: (q: string) =>
+      `https://montanaflycompany.com/search?q=${encodeURIComponent(q)}`,
+    productSelector: ".product-card a[href], .grid-item a[href]",
+    imageSelector: ".product-single__photo img, .product__image img",
+  },
+  {
+    name: "Fulling Mill",
+    searchUrl: (q: string) =>
+      `https://www.fullingmill.com/search?q=${encodeURIComponent(q + " fly")}`,
+    productSelector: ".product-card a[href], .product-item a[href]",
+    imageSelector: ".product-gallery img, .product-image img",
+  },
+];
+
+/**
+ * Scrape product images from fly shop search results.
+ * These images are the highest quality and most accurate for a specific pattern.
+ */
+async function scrapeFlyShopImages(
+  patternName: string
+): Promise<DiscoveredImage[]> {
+  const allImages: DiscoveredImage[] = [];
+  const seen = new Set<string>();
+
+  for (const shop of FLY_SHOP_SITES) {
+    try {
+      const html = await fetchPage(shop.searchUrl(patternName));
+      if (!html) continue;
+
+      const $ = cheerio.load(html);
+
+      // Try to find product links from search results
+      const productLinks: string[] = [];
+      $(shop.productSelector).each((_, el) => {
+        const href = $(el).attr("href");
+        if (href) {
+          const fullUrl = href.startsWith("http") ? href : new URL(href, shop.searchUrl("")).origin + href;
+          if (!productLinks.includes(fullUrl)) productLinks.push(fullUrl);
+        }
+      });
+
+      // Extract images from search results page directly
+      $("img").each((_, el) => {
+        const src = $(el).attr("src") || $(el).attr("data-src");
+        if (!src || !isUsableImageUrl(src) || seen.has(src)) return;
+
+        const alt = ($(el).attr("alt") || "").toLowerCase();
+        const patternLower = patternName.toLowerCase();
+        // Only include if alt text mentions the pattern name
+        if (!alt.includes(patternLower.split(" ")[0] || "")) return;
+
+        seen.add(src);
+        allImages.push({
+          url: src,
+          caption: `${patternName} — ${shop.name}`,
+          source: "fly_shop" as const,
+          relevanceScore: 0.95, // High confidence from fly shops
+        });
+      });
+
+      // Scrape first 2 product pages for detailed images
+      for (const productUrl of productLinks.slice(0, 2)) {
+        try {
+          const productHtml = await fetchPage(productUrl);
+          if (!productHtml) continue;
+
+          const $prod = cheerio.load(productHtml);
+          $prod(shop.imageSelector + ", .product img, article img").each((_, el) => {
+            const src = $prod(el).attr("src") || $prod(el).attr("data-src");
+            if (!src || !isUsableImageUrl(src) || seen.has(src)) return;
+
+            seen.add(src);
+            allImages.push({
+              url: src,
+              caption: `${patternName} — ${shop.name}`,
+              source: "fly_shop" as const,
+              relevanceScore: 0.98, // Highest confidence — product page image
+            });
+          });
+        } catch {
+          // Skip failed product page fetches
+        }
+      }
+
+      if (allImages.length >= 5) break;
+    } catch (err) {
+      log.debug(`Fly shop scrape failed for ${shop.name}: ${String(err)}`);
+    }
+  }
+
+  if (allImages.length > 0) {
+    log.debug(`Fly shops: found ${allImages.length} images for "${patternName}"`);
+  }
+
+  return allImages;
+}
+
 // ─── Staged Source Image Extraction ─────────────────────────────────────────
 
 /**
@@ -563,7 +683,7 @@ export async function discoverPatternImages(
 
   let images: DiscoveredImage[] = [];
 
-  // 1. Run all API searches in parallel (Brave, Serper, Wikimedia, blogs)
+  // 1. Run all API searches in parallel (Brave, Serper, Wikimedia, blogs, fly shops)
   const apiSearches = [
     ...queries.flatMap((q) => [
       searchBraveImages(q),
@@ -571,6 +691,7 @@ export async function discoverPatternImages(
     ]),
     searchWikimediaImages(patternName),
     scrapeBlogImages(patternName),
+    scrapeFlyShopImages(patternName),
   ];
 
   const results = await Promise.allSettled(apiSearches);

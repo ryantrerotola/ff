@@ -83,7 +83,58 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const ownedMaterialIds = userMaterials.map((um) => um.materialId);
+  const ownedMaterialIds = new Set(userMaterials.map((um) => um.materialId));
+
+  // Group owned materials by type for flexible matching
+  const ownedByType: Record<string, string[]> = {};
+  for (const um of userMaterials) {
+    const type = um.material.type;
+    if (!ownedByType[type]) ownedByType[type] = [];
+    ownedByType[type].push(um.materialId);
+  }
+
+  // Types where any material of the same type is considered interchangeable
+  // (e.g., any thread can substitute for another thread, flash is interchangeable)
+  const FLEXIBLE_TYPES = new Set(["thread", "weight", "bead"]);
+
+  // Load substitutions for smarter matching
+  const substitutions = await prisma.materialSubstitution.findMany({
+    select: { materialId: true, substituteMaterialId: true },
+  });
+  const subMap = new Map<string, Set<string>>();
+  for (const sub of substitutions) {
+    if (!subMap.has(sub.materialId)) subMap.set(sub.materialId, new Set());
+    subMap.get(sub.materialId)!.add(sub.substituteMaterialId);
+    // Bidirectional: if A substitutes B, B can substitute A
+    if (!subMap.has(sub.substituteMaterialId)) subMap.set(sub.substituteMaterialId, new Set());
+    subMap.get(sub.substituteMaterialId)!.add(sub.materialId);
+  }
+
+  /**
+   * Check if the user can cover a required material slot.
+   * Match order: exact ID → known substitution → same type (for flexible types).
+   */
+  function canCoverMaterial(materialId: string, materialType: string): boolean {
+    // Exact match
+    if (ownedMaterialIds.has(materialId)) return true;
+
+    // Known substitution from the database
+    const subs = subMap.get(materialId);
+    if (subs) {
+      for (const subId of subs) {
+        if (ownedMaterialIds.has(subId)) return true;
+      }
+    }
+
+    // Flexible type match: any material of the same type counts
+    if (FLEXIBLE_TYPES.has(materialType)) {
+      return (ownedByType[materialType]?.length ?? 0) > 0;
+    }
+
+    // Same-type matching for other categories (tail, body, wing, hackle, etc.)
+    // The user has a material of the same type → flexible match
+    return (ownedByType[materialType]?.length ?? 0) > 0;
+  }
 
   // Find all patterns and their required materials
   const patterns = await prisma.flyPattern.findMany({
@@ -122,36 +173,37 @@ export async function GET(request: NextRequest) {
   for (const pattern of patterns) {
     if (pattern.materials.length === 0) continue;
 
-    const requiredMaterialIds = pattern.materials.map((m) => m.materialId);
-    const ownedForPattern = requiredMaterialIds.filter((id) =>
-      ownedMaterialIds.includes(id)
-    );
-    const missingCount = requiredMaterialIds.length - ownedForPattern.length;
+    let coveredCount = 0;
+    const missingMaterials: Array<{ id: string; name: string; type: string }> = [];
 
-    if (missingCount === 0) {
+    for (const pm of pattern.materials) {
+      if (canCoverMaterial(pm.materialId, pm.material.type)) {
+        coveredCount++;
+      } else {
+        missingMaterials.push({
+          id: pm.material.id,
+          name: pm.material.name,
+          type: pm.material.type,
+        });
+      }
+    }
+
+    if (missingMaterials.length === 0) {
       canTie.push({
         id: pattern.id,
         name: pattern.name,
         slug: pattern.slug,
         category: pattern.category,
       });
-    } else if (ownedForPattern.length > 0 && missingCount <= 3) {
-      const missing = pattern.materials
-        .filter((m) => !ownedMaterialIds.includes(m.materialId))
-        .map((m) => ({
-          id: m.material.id,
-          name: m.material.name,
-          type: m.material.type,
-        }));
-
+    } else if (coveredCount > 0 && missingMaterials.length <= 3) {
       almostThere.push({
         id: pattern.id,
         name: pattern.name,
         slug: pattern.slug,
         category: pattern.category,
-        totalMaterials: requiredMaterialIds.length,
-        ownedCount: ownedForPattern.length,
-        missing,
+        totalMaterials: pattern.materials.length,
+        ownedCount: coveredCount,
+        missing: missingMaterials,
       });
     }
   }

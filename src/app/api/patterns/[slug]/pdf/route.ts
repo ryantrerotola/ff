@@ -40,6 +40,23 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     })
     .join("");
 
+  const tyingStepsHtml = pattern.tyingSteps && pattern.tyingSteps.length > 0
+    ? `<h2 style="margin-top: 24px; font-size: 18px; color: #1f2937;">How to Tie</h2>
+       <ol style="margin-top: 12px; padding-left: 0; list-style: none; counter-reset: step-counter;">
+         ${pattern.tyingSteps
+           .map(
+             (step) => `
+         <li style="margin-top: 16px; padding-left: 40px; position: relative;">
+           <span style="position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #f0f7f4; color: #2b6e57; font-size: 13px; font-weight: 700;">${step.position}</span>
+           <strong style="font-size: 14px; color: #1f2937;">${step.title}</strong>
+           <p style="font-size: 13px; color: #4b5563; margin-top: 4px; line-height: 1.6;">${step.instruction}</p>
+           ${step.tip ? `<p style="font-size: 12px; color: #92400e; margin-top: 6px; padding: 6px 10px; background: #fffbeb; border-radius: 4px;"><strong>Tip:</strong> ${step.tip}</p>` : ""}
+         </li>`,
+           )
+           .join("")}
+       </ol>`
+    : "";
+
   const variationsHtml = pattern.variations.length > 0
     ? `<h2 style="margin-top: 24px; font-size: 18px; color: #1f2937;">Variations</h2>
        ${pattern.variations
@@ -112,6 +129,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       ${materialsHtml}
     </tbody>
   </table>
+
+  ${tyingStepsHtml}
 
   ${variationsHtml}
 

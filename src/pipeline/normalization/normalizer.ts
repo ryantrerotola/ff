@@ -8,6 +8,54 @@ import type { ExtractedPattern, NormalizedMaterial } from "../types";
 const log = createLogger("normalizer");
 
 /**
+ * Valid MaterialType enum values from the Prisma schema.
+ */
+const VALID_MATERIAL_TYPES = new Set([
+  "hook", "thread", "tail", "body", "rib", "thorax",
+  "wing", "hackle", "bead", "weight", "other",
+]);
+
+/**
+ * Map common non-enum material type strings to valid MaterialType values.
+ * LLMs sometimes return types outside the constrained enum.
+ */
+const MATERIAL_TYPE_ALIASES: Record<string, string> = {
+  throat: "hackle",    // throat hackle → hackle
+  collar: "hackle",    // collar hackle → hackle
+  wingcase: "thorax",  // wingcase sits on thorax
+  shellback: "body",   // shellback wraps over body
+  underbody: "body",
+  overbody: "body",
+  abdomen: "body",
+  butt: "tail",        // butt section near tail
+  tag: "tail",         // tag sits at tail position
+  head: "other",
+  eyes: "other",
+  legs: "other",
+  flash: "other",
+  antenna: "other",
+  antennae: "other",
+  dubbing: "body",
+  chenille: "body",
+  wire: "rib",
+  tinsel: "rib",
+};
+
+/**
+ * Sanitize a raw material type string to a valid MaterialType enum value.
+ * Returns the type as-is if valid, maps known aliases, or falls back to "other".
+ */
+export function sanitizeMaterialType(rawType: string): string {
+  const lower = rawType.toLowerCase().trim();
+  if (VALID_MATERIAL_TYPES.has(lower)) return lower;
+  if (lower in MATERIAL_TYPE_ALIASES) {
+    return MATERIAL_TYPE_ALIASES[lower]!;
+  }
+  log.warn("Unknown material type, mapping to 'other'", { rawType });
+  return "other";
+}
+
+/**
  * Normalize an extracted material name against the canonical materials table.
  *
  * If a match is found in canonical_materials, returns the canonical name.
@@ -17,6 +65,7 @@ export async function normalizeMaterial(
   rawName: string,
   rawType: string
 ): Promise<NormalizedMaterial> {
+  const safeType = sanitizeMaterialType(rawType);
   const normalizedName = normalizeMaterialName(rawName);
 
   // Title-case the normalized name for canonical storage
@@ -27,7 +76,7 @@ export async function normalizeMaterial(
 
   // Step 1: Check canonical materials for exact match or alias
   const canonicals = await prisma.canonicalMaterial.findMany({
-    where: { materialType: rawType as never },
+    where: { materialType: safeType as never },
   });
 
   // Check exact canonical name
@@ -98,7 +147,7 @@ export async function normalizeMaterial(
 
   // Step 3: Also check existing production Materials table
   const existingMaterials = await prisma.material.findMany({
-    where: { type: rawType as never },
+    where: { type: safeType as never },
     select: { name: true, type: true },
   });
 
@@ -120,7 +169,7 @@ export async function normalizeMaterial(
         },
         create: {
           canonicalName: prodMatch.match,
-          materialType: rawType as never,
+          materialType: safeType as never,
           aliases: rawName !== prodMatch.match ? [rawName] : [],
         },
       });
@@ -135,7 +184,7 @@ export async function normalizeMaterial(
 
     return {
       canonicalName: prodMatch.match,
-      type: rawType,
+      type: safeType,
       aliases: [rawName],
       confidence: prodMatch.score,
     };
@@ -144,7 +193,7 @@ export async function normalizeMaterial(
   // Step 4: No match found — create new canonical entry
   log.info("New canonical material", {
     name: canonicalDisplay,
-    type: rawType,
+    type: safeType,
   });
 
   try {
@@ -155,7 +204,7 @@ export async function normalizeMaterial(
       },
       create: {
         canonicalName: canonicalDisplay,
-        materialType: rawType as never,
+        materialType: safeType as never,
         aliases: rawName !== canonicalDisplay ? [rawName] : [],
       },
     });
@@ -170,7 +219,7 @@ export async function normalizeMaterial(
 
   return {
     canonicalName: canonicalDisplay,
-    type: rawType,
+    type: safeType,
     aliases: rawName !== canonicalDisplay ? [rawName] : [],
     confidence: 0.5,
   };

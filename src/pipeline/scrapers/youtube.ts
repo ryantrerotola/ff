@@ -63,7 +63,6 @@ export async function searchYouTube(
       String(PIPELINE_CONFIG.youtube.maxResultsPerQuery)
     );
     searchUrl.searchParams.set("relevanceLanguage", "en");
-    searchUrl.searchParams.set("videoDuration", "medium");
     searchUrl.searchParams.set("key", apiKey);
 
     const searchData = await retry(
@@ -102,8 +101,14 @@ export async function searchYouTube(
         });
       }
 
-      // Only include if we got a transcript or a detailed description
-      if (transcript || item.snippet.description.length > 100) {
+      // Include the video as long as it has some content to work with
+      // (transcript, description, or at least a descriptive title)
+      const titleLower = item.snippet.title.toLowerCase();
+      const patternLower = patternName.toLowerCase();
+      const titleMatchesPattern = patternLower.split(/\s+/).some(
+        (w) => w.length > 3 && titleLower.includes(w)
+      );
+      if (transcript || item.snippet.description.length > 50 || titleMatchesPattern) {
         results.push({
           videoId,
           title: item.snippet.title,

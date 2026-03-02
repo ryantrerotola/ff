@@ -14,6 +14,11 @@ export const metadata: Metadata = {
     "Browse fly tying techniques by category and difficulty. Video tutorials, key points, and step-by-step guidance.",
 };
 
+/** Title-case a string: capitalize the first letter of each word. */
+function titleCase(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 const DIFFICULTY_BADGE_COLORS: Record<string, string> = {
   beginner:
     "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
@@ -102,14 +107,14 @@ export default async function LearnPage({ searchParams }: LearnPageProps) {
       </p>
 
       {/* Search & Filters */}
-      <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mt-6 space-y-3">
         <form action="/learn" method="get" className="flex gap-2">
           <input
             name="search"
             type="text"
             defaultValue={search ?? ""}
             placeholder="Search techniques..."
-            className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-white shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:w-64"
+            className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-white shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           />
           {category && <input type="hidden" name="category" value={category} />}
           {difficulty && (
@@ -117,15 +122,15 @@ export default async function LearnPage({ searchParams }: LearnPageProps) {
           )}
           <button
             type="submit"
-            className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
+            className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
           >
             Search
           </button>
         </form>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {/* Category filter */}
-          <div className="flex flex-wrap gap-1 rounded-md border border-gray-200 dark:border-gray-700 p-0.5">
+          <div className="flex flex-1 flex-wrap gap-1 rounded-md border border-gray-200 dark:border-gray-700 p-0.5">
             <Link
               href={buildUrl({
                 search: search ?? "",
@@ -287,7 +292,7 @@ export default async function LearnPage({ searchParams }: LearnPageProps) {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <h3 className="text-base font-semibold text-gray-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400">
-                            {technique.name}
+                            {titleCase(technique.name)}
                           </h3>
                           <span
                             className={`inline-flex flex-shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeColor}`}

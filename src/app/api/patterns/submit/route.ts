@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, category, difficulty, waterType, description, materials } =
+  const { name, category, difficulty, waterType, description, materials, videoUrls, tyingSteps } =
     parsed.data;
 
   const submission = await prisma.userSubmittedPattern.create({
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       difficulty,
       waterType,
       description,
-      materials: materials as unknown as object,
+      materials: { materials, videoUrls, tyingSteps } as unknown as object,
     },
   });
 

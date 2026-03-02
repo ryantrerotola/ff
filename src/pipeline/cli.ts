@@ -644,7 +644,10 @@ async function cmdImages(args: string[]) {
         },
       });
 
-      // Create new image records
+      // Create new image records — prefer fly shop images as the primary/best picture
+      const flyShopImage = validated.find((img) => img.source === "fly_shop");
+      const primaryUrl = flyShopImage?.url ?? validated[0]?.url;
+
       for (let j = 0; j < validated.length; j++) {
         const img = validated[j]!;
         await prisma.patternImage.create({
@@ -652,7 +655,7 @@ async function cmdImages(args: string[]) {
             flyPatternId: pattern.id,
             url: img.url,
             caption: img.caption || `${pattern.name} fly pattern`,
-            isPrimary: j === 0,
+            isPrimary: img.url === primaryUrl,
           },
         });
       }
@@ -2026,6 +2029,61 @@ async function cmdEnrich(args: string[]) {
   );
 }
 
+// ─── COMMAND: validate-resources ─────────────────────────────────────────────
+
+async function cmdValidateResources(args: string[]) {
+  const dryRun = args.includes("--dry-run");
+  log.info(`Validating resource URLs${dryRun ? " (dry run)" : ""}...`);
+
+  const resources = await prisma.resource.findMany({
+    where: { type: "blog" },
+    select: { id: true, url: true, title: true },
+  });
+
+  log.info(`Checking ${resources.length} blog resources`);
+
+  let broken = 0;
+  let valid = 0;
+
+  await mapConcurrent(resources, 5, async (resource, idx) => {
+    console.log(progressBar(idx + 1, resources.length, resource.title ?? resource.url));
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+
+      const res = await fetch(resource.url, {
+        method: "HEAD",
+        signal: controller.signal,
+        redirect: "follow",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; FlyArchive/1.0)",
+        },
+      });
+
+      clearTimeout(timeout);
+
+      if (res.status >= 400) {
+        broken++;
+        log.warn(`Broken (${res.status})`, { url: resource.url, title: resource.title });
+        if (!dryRun) {
+          await prisma.resource.delete({ where: { id: resource.id } });
+        }
+      } else {
+        valid++;
+      }
+    } catch {
+      broken++;
+      log.warn("Unreachable", { url: resource.url, title: resource.title });
+      if (!dryRun) {
+        await prisma.resource.delete({ where: { id: resource.id } });
+      }
+    }
+  });
+
+  log.success(`Validation complete: ${valid} valid, ${broken} broken${dryRun ? " (dry run, nothing deleted)" : ` (${broken} deleted)`}`);
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -2081,6 +2139,8 @@ Commands:
   clean-images --revalidate [--dry-run]
                                Re-validate existing images with Claude vision
                                and delete any that aren't fly pattern photos
+  validate-resources [--dry-run]
+                               Check blog resource URLs and delete broken ones
   status                       Show pipeline statistics
   run [patterns...]            Run full pipeline end-to-end
 `);
@@ -2163,6 +2223,9 @@ Commands:
         break;
       case "clean-images":
         await cmdCleanImages(args);
+        break;
+      case "validate-resources":
+        await cmdValidateResources(args);
         break;
       case "status":
         await cmdStatus();
