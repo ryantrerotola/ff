@@ -1,53 +1,37 @@
 import { prisma } from "@/lib/prisma";
 import { PIPELINE_CONFIG } from "../config";
+import { createRateLimiter, retry } from "../utils/rate-limit";
 import { createLogger } from "../utils/logger";
 
 const log = createLogger("technique-scraper");
+const rateLimit = createRateLimiter(PIPELINE_CONFIG.scraping.requestDelayMs);
+
+const BRAVE_WEB_API = "https://api.search.brave.com/res/v1/web/search";
 
 /**
  * Search queries for discovering technique tutorial videos.
  */
 const SEARCH_TEMPLATES = [
-  "fly tying {technique} tutorial",
-  "how to {technique} fly tying",
-  "{technique} fly tying technique beginner",
+  "site:youtube.com fly tying {technique} tutorial",
+  "site:youtube.com how to {technique} fly tying",
 ];
 
-interface YouTubeSearchItem {
-  id: { videoId: string };
-  snippet: {
-    title: string;
-    channelTitle: string;
-    thumbnails: {
-      medium?: { url: string };
-      high?: { url: string };
-    };
-  };
-}
-
-interface YouTubeSearchResponse {
-  items?: YouTubeSearchItem[];
-}
-
-interface YouTubeVideoItem {
-  id: string;
-  contentDetails: { duration: string };
-}
-
-interface YouTubeVideoResponse {
-  items?: YouTubeVideoItem[];
-}
-
 /**
- * Convert ISO 8601 duration (PT12M34S) to human-readable (12:34).
+ * Extract YouTube video ID from a URL.
  */
-function parseDuration(iso: string): string {
-  const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!match) return "";
-  const h = match[1] ? `${match[1]}:` : "";
-  const m = match[2] ?? "0";
-  const s = (match[3] ?? "0").padStart(2, "0");
-  return `${h}${m}:${s}`;
+function extractVideoId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtube.com")) {
+      return u.searchParams.get("v");
+    }
+    if (u.hostname === "youtu.be") {
+      return u.pathname.slice(1).split("/")[0] ?? null;
+    }
+  } catch {
+    // invalid URL
+  }
+  return null;
 }
 
 /**
@@ -74,15 +58,25 @@ function scoreResult(title: string, techniqueName: string): number {
 }
 
 /**
+ * Try to extract channel name from Brave search result title.
+ */
+function extractChannelFromTitle(title: string): string {
+  const cleaned = title.replace(/\s*[-–]\s*YouTube$/i, "");
+  const parts = cleaned.split(/\s*[-–]\s*/);
+  return parts.length > 1 ? parts[parts.length - 1]!.trim() : "";
+}
+
+/**
  * Discover and save YouTube technique tutorial videos.
- * Requires YOUTUBE_API_KEY to be set.
+ * Uses Brave Web Search with site:youtube.com instead of YouTube Data API.
+ * Requires BRAVE_SEARCH_API_KEY to be set.
  */
 export async function discoverTechniqueVideos(
   techniqueSlug?: string,
 ): Promise<number> {
-  const apiKey = PIPELINE_CONFIG.youtube.apiKey;
+  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
   if (!apiKey) {
-    log.error("YOUTUBE_API_KEY is required for technique video discovery");
+    log.error("BRAVE_SEARCH_API_KEY is required for technique video discovery");
     return 0;
   }
 
@@ -111,53 +105,71 @@ export async function discoverTechniqueVideos(
       score: number;
     }[] = [];
 
-    // Search YouTube for each query template
+    // Search Brave for each query template
     for (const template of SEARCH_TEMPLATES) {
       const query = template.replace("{technique}", technique.name);
 
+      await rateLimit();
+
       try {
         const params = new URLSearchParams({
-          part: "snippet",
           q: query,
-          type: "video",
-          maxResults: "5",
-          key: apiKey,
+          count: "10",
+          country: "us",
         });
 
-        const res = await fetch(
-          `https://www.googleapis.com/youtube/v3/search?${params}`,
-          { signal: AbortSignal.timeout(10000) },
+        const res = await retry(
+          () =>
+            fetch(`${BRAVE_WEB_API}?${params}`, {
+              headers: {
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip",
+                "Cache-Control": "no-cache",
+                "X-Subscription-Token": apiKey,
+              },
+              signal: AbortSignal.timeout(PIPELINE_CONFIG.scraping.timeoutMs),
+            }),
+          { maxRetries: 2, backoffMs: 2000, label: `brave-tech:${query}` }
         );
 
         if (!res.ok) {
-          log.error("YouTube search failed", {
+          log.error("Brave search failed", {
             technique: technique.name,
             status: String(res.status),
           });
           continue;
         }
 
-        const data: YouTubeSearchResponse = await res.json();
+        const data = (await res.json()) as {
+          web?: {
+            results?: {
+              url: string;
+              title: string;
+              description?: string;
+            }[];
+          };
+        };
 
-        for (const item of data.items ?? []) {
-          const videoId = item.id.videoId;
+        for (const item of data.web?.results ?? []) {
+          const videoId = extractVideoId(item.url);
+          if (!videoId) continue;
+
           const url = `https://www.youtube.com/watch?v=${videoId}`;
-
           if (existingUrls.has(url)) continue;
+
+          // Use YouTube thumbnail URL format (no API needed)
+          const thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
           candidates.push({
             videoId,
-            title: item.snippet.title,
-            channelTitle: item.snippet.channelTitle,
-            thumbnailUrl:
-              item.snippet.thumbnails.high?.url ??
-              item.snippet.thumbnails.medium?.url ??
-              null,
-            score: scoreResult(item.snippet.title, technique.name),
+            title: item.title.replace(/\s*[-–]\s*YouTube$/i, ""),
+            channelTitle: extractChannelFromTitle(item.title),
+            thumbnailUrl,
+            score: scoreResult(item.title, technique.name),
           });
         }
       } catch (err) {
-        log.error("YouTube search error", {
+        log.error("Brave search error", {
           query,
           error: String(err),
         });
@@ -176,56 +188,27 @@ export async function discoverTechniqueVideos(
     // Take top 3 results
     const topResults = unique.slice(0, 3);
 
-    // Fetch durations for top results
-    if (topResults.length > 0) {
+    for (const result of topResults) {
+      const url = `https://www.youtube.com/watch?v=${result.videoId}`;
       try {
-        const videoIds = topResults.map((r) => r.videoId).join(",");
-        const params = new URLSearchParams({
-          part: "contentDetails",
-          id: videoIds,
-          key: apiKey,
+        await prisma.techniqueVideo.create({
+          data: {
+            techniqueId: technique.id,
+            title: result.title,
+            url,
+            creatorName: result.channelTitle || "Unknown",
+            thumbnailUrl: result.thumbnailUrl,
+            duration: null,
+            qualityScore: result.score >= 10 ? 5 : result.score >= 5 ? 4 : 3,
+          },
         });
-
-        const res = await fetch(
-          `https://www.googleapis.com/youtube/v3/videos?${params}`,
-          { signal: AbortSignal.timeout(10000) },
-        );
-
-        if (res.ok) {
-          const data: YouTubeVideoResponse = await res.json();
-          const durations = new Map(
-            (data.items ?? []).map((item) => [
-              item.id,
-              parseDuration(item.contentDetails.duration),
-            ]),
-          );
-
-          for (const result of topResults) {
-            const url = `https://www.youtube.com/watch?v=${result.videoId}`;
-            try {
-              await prisma.techniqueVideo.create({
-                data: {
-                  techniqueId: technique.id,
-                  title: result.title,
-                  url,
-                  creatorName: result.channelTitle,
-                  thumbnailUrl: result.thumbnailUrl,
-                  duration: durations.get(result.videoId) ?? null,
-                  qualityScore: result.score >= 10 ? 5 : result.score >= 5 ? 4 : 3,
-                },
-              });
-              totalNew++;
-              log.info("Added video", {
-                technique: technique.name,
-                title: result.title.slice(0, 50),
-              });
-            } catch {
-              // URL already exists (unique constraint)
-            }
-          }
-        }
-      } catch (err) {
-        log.error("Failed to fetch video details", { error: String(err) });
+        totalNew++;
+        log.info("Added video", {
+          technique: technique.name,
+          title: result.title.slice(0, 50),
+        });
+      } catch {
+        // URL already exists (unique constraint)
       }
     }
   }

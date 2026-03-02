@@ -4,167 +4,156 @@ import { createLogger } from "../utils/logger";
 import type { RawYouTubeResult } from "../types";
 
 const log = createLogger("youtube");
-const rateLimit = createRateLimiter(200);
+const rateLimit = createRateLimiter(PIPELINE_CONFIG.scraping.requestDelayMs);
 
-// ─── YouTube Data API v3 ────────────────────────────────────────────────────
+// ─── Brave Web Search for YouTube Discovery ─────────────────────────────────
 
-interface YouTubeSearchItem {
-  id: { videoId: string };
-  snippet: {
-    title: string;
-    channelTitle: string;
-    description: string;
-    publishedAt: string;
-  };
-}
+const BRAVE_WEB_API = "https://api.search.brave.com/res/v1/web/search";
 
-interface YouTubeSearchResponse {
-  items: YouTubeSearchItem[];
-  pageInfo: { totalResults: number };
-}
-
-interface YouTubeVideoStats {
-  id: string;
-  statistics: {
-    viewCount: string;
-    likeCount: string;
-  };
-}
-
-interface YouTubeVideoResponse {
-  items: YouTubeVideoStats[];
+/**
+ * Extract YouTube video ID from a URL.
+ */
+function extractVideoId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtube.com")) {
+      return u.searchParams.get("v");
+    }
+    if (u.hostname === "youtu.be") {
+      return u.pathname.slice(1).split("/")[0] ?? null;
+    }
+  } catch {
+    // invalid URL
+  }
+  return null;
 }
 
 /**
- * Search YouTube for fly tying videos matching a pattern name.
+ * Try to extract channel name from Brave search result title.
+ * Brave titles often look like "Video Title - Channel Name"
+ * (YouTube suffix is usually stripped by Brave).
+ */
+function extractChannelFromTitle(title: string): string {
+  const cleaned = title.replace(/\s*[-–]\s*YouTube$/i, "");
+  const parts = cleaned.split(/\s*[-–]\s*/);
+  return parts.length > 1 ? parts[parts.length - 1]!.trim() : "";
+}
+
+/**
+ * Search for YouTube fly tying videos using Brave Web Search.
+ * Uses site:youtube.com queries instead of YouTube Data API v3.
+ * No YouTube API key needed — uses BRAVE_SEARCH_API_KEY.
  */
 export async function searchYouTube(
   patternName: string
 ): Promise<RawYouTubeResult[]> {
-  const apiKey = PIPELINE_CONFIG.youtube.apiKey;
+  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
   if (!apiKey) {
-    throw new Error("YOUTUBE_API_KEY not configured");
+    log.warn("BRAVE_SEARCH_API_KEY not configured — skipping YouTube discovery");
+    return [];
   }
 
   const results: RawYouTubeResult[] = [];
+  const seenVideoIds = new Set<string>();
 
   for (const queryTemplate of PIPELINE_CONFIG.youtube.searchQueries) {
     const query = queryTemplate.replace("{pattern}", patternName);
-    log.info("Searching YouTube", { query });
+    log.info("Searching Brave for YouTube videos", { query });
 
     await rateLimit();
 
-    const searchUrl = new URL("https://www.googleapis.com/youtube/v3/search");
-    searchUrl.searchParams.set("part", "snippet");
-    searchUrl.searchParams.set("q", query);
-    searchUrl.searchParams.set("type", "video");
-    searchUrl.searchParams.set(
-      "maxResults",
-      String(PIPELINE_CONFIG.youtube.maxResultsPerQuery)
-    );
-    searchUrl.searchParams.set("relevanceLanguage", "en");
-    searchUrl.searchParams.set("key", apiKey);
-
-    const searchData = await retry(
-      async () => {
-        const res = await fetch(searchUrl.toString());
-        if (!res.ok) {
-          const body = await res.text();
-          throw new Error(`YouTube search API error ${res.status}: ${body}`);
-        }
-        return res.json() as Promise<YouTubeSearchResponse>;
-      },
-      { maxRetries: 2, label: `youtube-search:${query}` }
-    );
-
-    if (!searchData.items?.length) {
-      log.warn("No results for query", { query });
-      continue;
-    }
-
-    // Fetch video statistics in batch
-    const videoIds = searchData.items.map((item) => item.id.videoId);
-    const statsMap = await fetchVideoStats(videoIds, apiKey);
-
-    for (const item of searchData.items) {
-      const videoId = item.id.videoId;
-      const stats = statsMap.get(videoId);
-
-      // Fetch transcript
-      let transcript: string | null = null;
-      try {
-        transcript = await fetchTranscript(videoId);
-      } catch (err) {
-        log.debug("No transcript available", {
-          videoId,
-          error: String(err),
-        });
-      }
-
-      // Include the video as long as it has some content to work with
-      // (transcript, description, or at least a descriptive title)
-      const titleLower = item.snippet.title.toLowerCase();
-      const patternLower = patternName.toLowerCase();
-      const titleMatchesPattern = patternLower.split(/\s+/).some(
-        (w) => w.length > 3 && titleLower.includes(w)
-      );
-      if (transcript || item.snippet.description.length > 50 || titleMatchesPattern) {
-        results.push({
-          videoId,
-          title: item.snippet.title,
-          channelTitle: item.snippet.channelTitle,
-          description: item.snippet.description,
-          publishedAt: item.snippet.publishedAt,
-          viewCount: parseInt(stats?.statistics.viewCount ?? "0", 10),
-          likeCount: parseInt(stats?.statistics.likeCount ?? "0", 10),
-          transcript,
-        });
-      }
-    }
-
-    log.success("Search complete", {
-      query,
-      resultsFound: String(results.length),
+    const params = new URLSearchParams({
+      q: query,
+      count: String(PIPELINE_CONFIG.youtube.maxResultsPerQuery),
+      country: "us",
     });
+
+    try {
+      const res = await retry(
+        () =>
+          fetch(`${BRAVE_WEB_API}?${params}`, {
+            headers: {
+              "Accept": "application/json",
+              "Accept-Encoding": "gzip",
+              "Cache-Control": "no-cache",
+              "X-Subscription-Token": apiKey,
+            },
+            signal: AbortSignal.timeout(PIPELINE_CONFIG.scraping.timeoutMs),
+          }),
+        { maxRetries: 2, backoffMs: 2000, label: `brave-yt:${query}` }
+      );
+
+      if (!res.ok) {
+        log.warn(`Brave Search error: ${res.status}`, { query });
+        continue;
+      }
+
+      const data = (await res.json()) as {
+        web?: {
+          results?: {
+            url: string;
+            title: string;
+            description?: string;
+          }[];
+        };
+      };
+
+      if (!data.web?.results?.length) {
+        log.warn("No Brave results for query", { query });
+        continue;
+      }
+
+      for (const item of data.web.results) {
+        const videoId = extractVideoId(item.url);
+        if (!videoId || seenVideoIds.has(videoId)) continue;
+        seenVideoIds.add(videoId);
+
+        // Fetch transcript (free — scrapes YouTube page directly, no API quota)
+        let transcript: string | null = null;
+        try {
+          transcript = await fetchTranscript(videoId);
+        } catch (err) {
+          log.debug("No transcript available", {
+            videoId,
+            error: String(err),
+          });
+        }
+
+        // Include video if it has transcript, decent description, or matching title
+        const titleLower = item.title.toLowerCase();
+        const patternLower = patternName.toLowerCase();
+        const titleMatchesPattern = patternLower
+          .split(/\s+/)
+          .some((w) => w.length > 3 && titleLower.includes(w));
+        const description = item.description ?? "";
+
+        if (transcript || description.length > 50 || titleMatchesPattern) {
+          results.push({
+            videoId,
+            title: item.title,
+            channelTitle: extractChannelFromTitle(item.title),
+            description,
+            publishedAt: "",
+            viewCount: 0,
+            likeCount: 0,
+            transcript,
+          });
+        }
+      }
+
+      log.success("Brave YouTube search complete", {
+        query,
+        resultsFound: String(results.length),
+      });
+    } catch (err) {
+      log.error("Brave YouTube search failed", {
+        query,
+        error: String(err),
+      });
+    }
   }
 
-  // Deduplicate by videoId
-  const seen = new Set<string>();
-  return results.filter((r) => {
-    if (seen.has(r.videoId)) return false;
-    seen.add(r.videoId);
-    return true;
-  });
-}
-
-/**
- * Fetch video statistics for a batch of video IDs.
- */
-async function fetchVideoStats(
-  videoIds: string[],
-  apiKey: string
-): Promise<Map<string, YouTubeVideoStats>> {
-  await rateLimit();
-
-  const url = new URL("https://www.googleapis.com/youtube/v3/videos");
-  url.searchParams.set("part", "statistics");
-  url.searchParams.set("id", videoIds.join(","));
-  url.searchParams.set("key", apiKey);
-
-  const data = await retry(
-    async () => {
-      const res = await fetch(url.toString());
-      if (!res.ok) throw new Error(`YouTube videos API error ${res.status}`);
-      return res.json() as Promise<YouTubeVideoResponse>;
-    },
-    { maxRetries: 2, label: "youtube-stats" }
-  );
-
-  const map = new Map<string, YouTubeVideoStats>();
-  for (const item of data.items) {
-    map.set(item.id, item);
-  }
-  return map;
+  return results;
 }
 
 // ─── Transcript Fetching ────────────────────────────────────────────────────
@@ -286,7 +275,7 @@ export function scoreYouTubeResult(result: RawYouTubeResult): number {
   // Transcript available is a big signal
   if (result.transcript) score += 30;
 
-  // Video engagement
+  // Video engagement (from YouTube API stats — zeroed for Brave-discovered videos)
   if (result.viewCount > 100000) score += 10;
   else if (result.viewCount > 10000) score += 7;
   else if (result.viewCount > 1000) score += 4;
