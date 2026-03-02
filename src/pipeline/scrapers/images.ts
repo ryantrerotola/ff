@@ -677,7 +677,7 @@ export async function discoverPatternImages(
 ): Promise<DiscoveredImage[]> {
   // Single consolidated query to minimize API costs
   const queries = [
-    `${patternName} fly pattern tying photo`,
+    `${patternName} fly fishing photo`,
   ];
 
   let images: DiscoveredImage[] = [];
