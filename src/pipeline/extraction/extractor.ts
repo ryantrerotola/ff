@@ -6,6 +6,7 @@ import {
   buildExtractionPrompt,
 } from "./prompts";
 import { createLogger } from "../utils/logger";
+import { sanitizeMaterialType } from "../normalization/normalizer";
 import type { ExtractedPattern } from "../types";
 
 const log = createLogger("extractor");
@@ -112,6 +113,11 @@ export async function extractPattern(
       return true;
     });
     data.materials = deduped;
+
+    // ── Sanitize material types to valid enum values ──────────────────
+    for (const m of data.materials) {
+      m.type = sanitizeMaterialType(m.type);
+    }
 
     // ── Normalize positions to sequential 1..N ─────────────────────────
     data.materials.forEach((m, i) => {
