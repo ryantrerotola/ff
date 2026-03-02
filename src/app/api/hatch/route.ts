@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   // Always exclude UNKNOWN / invalid waterways
   if (!where.waterBody) {
-    where.waterBody = { not: { contains: "unknown", mode: "insensitive" } };
+    where.NOT = { waterBody: { contains: "unknown", mode: "insensitive" } };
   }
 
   // Get distinct water bodies that match the filters (for pagination)
