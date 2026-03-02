@@ -553,26 +553,31 @@ async function cmdStatus() {
 // ─── COMMAND: images ─────────────────────────────────────────────────────────
 
 async function cmdImages(args: string[]) {
-  log.info("Discovering real images for fly patterns");
+  const force = args.includes("--force");
+  const slugArgs = args.filter((a) => !a.startsWith("--"));
+
+  log.info(`Discovering real images for fly patterns${force ? " (force mode — all patterns)" : ""}`);
 
   // Get all patterns, optionally filtered by slug args
-  const patterns = args.length > 0
+  const patterns = slugArgs.length > 0
     ? await prisma.flyPattern.findMany({
-        where: { slug: { in: args } },
+        where: { slug: { in: slugArgs } },
         include: { images: true },
       })
     : await prisma.flyPattern.findMany({
         include: { images: true },
       });
 
-  // Find patterns that have fewer than 3 real (non-placeholder) images
-  const needsImages = patterns.filter((p) => {
-    const realImages = p.images.filter((img) => !isPlaceholderImage(img.url));
-    return realImages.length < 3;
-  });
+  // In force mode, process ALL patterns; otherwise only those with < 3 real images
+  const needsImages = force
+    ? patterns
+    : patterns.filter((p) => {
+        const realImages = p.images.filter((img) => !isPlaceholderImage(img.url));
+        return realImages.length < 3;
+      });
 
   log.info(
-    `${needsImages.length} of ${patterns.length} patterns need real images`
+    `${needsImages.length} of ${patterns.length} patterns ${force ? "will be re-processed" : "need real images"}`
   );
 
   if (needsImages.length === 0) {
@@ -636,12 +641,11 @@ async function cmdImages(args: string[]) {
         continue;
       }
 
-      // Delete existing placeholder images for this pattern
+      // Delete existing images — all images in force mode, just placeholders otherwise
       await prisma.patternImage.deleteMany({
-        where: {
-          flyPatternId: pattern.id,
-          url: { contains: "placehold.co" },
-        },
+        where: force
+          ? { flyPatternId: pattern.id }
+          : { flyPatternId: pattern.id, url: { contains: "placehold.co" } },
       });
 
       // Create new image records — prefer fly shop images as the primary/best picture
@@ -2029,6 +2033,116 @@ async function cmdEnrich(args: string[]) {
   );
 }
 
+// ─── COMMAND: analyze ────────────────────────────────────────────────────────
+
+async function cmdAnalyze() {
+  log.info("Analyzing pattern data for gaps...\n");
+
+  const patterns = await prisma.flyPattern.findMany({
+    include: {
+      tyingSteps: { select: { id: true } },
+      resources: { select: { id: true, type: true } },
+      materials: { select: { id: true } },
+      images: { select: { id: true, url: true, isPrimary: true } },
+      variations: { select: { id: true } },
+    },
+  });
+
+  const total = patterns.length;
+  let missingSteps = 0;
+  let missingVideos = 0;
+  let missingArticles = 0;
+  let missingImages = 0;
+  let missingPrimaryImage = 0;
+  let missingMaterials = 0;
+  let sparseMaterials = 0;
+  let missingDescription = 0;
+  let missingOrigin = 0;
+  let missingVariations = 0;
+  let placeholderOnly = 0;
+
+  const gapDetails: { name: string; slug: string; gaps: string[] }[] = [];
+
+  for (const p of patterns) {
+    const gaps: string[] = [];
+    const realImages = p.images.filter((img) => !img.url.includes("placehold.co"));
+    const hasPrimary = p.images.some((img) => img.isPrimary);
+
+    if (p.tyingSteps.length === 0) { missingSteps++; gaps.push("steps"); }
+    if (!p.resources.some((r) => r.type === "video")) { missingVideos++; gaps.push("video"); }
+    if (!p.resources.some((r) => r.type === "blog")) { missingArticles++; gaps.push("article"); }
+    if (realImages.length === 0) { missingImages++; gaps.push("images"); }
+    if (!hasPrimary) { missingPrimaryImage++; }
+    if (realImages.length === 0 && p.images.length > 0) { placeholderOnly++; }
+    if (p.materials.length === 0) { missingMaterials++; gaps.push("materials"); }
+    else if (p.materials.length < 3) { sparseMaterials++; gaps.push("sparse-materials"); }
+    if (!p.description || p.description.trim() === "") { missingDescription++; gaps.push("description"); }
+    if (!p.origin || p.origin.trim() === "") { missingOrigin++; gaps.push("origin"); }
+    if (p.variations.length === 0) { missingVariations++; }
+
+    if (gaps.length > 0) {
+      gapDetails.push({ name: p.name, slug: p.slug, gaps });
+    }
+  }
+
+  // Sort by most gaps first
+  gapDetails.sort((a, b) => b.gaps.length - a.gaps.length);
+
+  const totalImages = patterns.reduce((sum, p) => sum + p.images.length, 0);
+  const totalVideos = patterns.reduce((sum, p) => sum + p.resources.filter((r) => r.type === "video").length, 0);
+  const totalArticles = patterns.reduce((sum, p) => sum + p.resources.filter((r) => r.type === "blog").length, 0);
+
+  console.log("═══════════════════════════════════════════════════");
+  console.log("  FlyArchive Pattern Data Gap Analysis");
+  console.log("═══════════════════════════════════════════════════\n");
+
+  console.log(`Total patterns:         ${total}`);
+  console.log(`Total images:           ${totalImages}`);
+  console.log(`Total videos:           ${totalVideos}`);
+  console.log(`Total articles:         ${totalArticles}\n`);
+
+  console.log("─── Coverage Gaps ─────────────────────────────────\n");
+
+  const pct = (n: number) => `${n}/${total} (${((n / total) * 100).toFixed(0)}%)`;
+
+  console.log(`Missing tying steps:    ${pct(missingSteps)}`);
+  console.log(`Missing videos:         ${pct(missingVideos)}`);
+  console.log(`Missing articles:       ${pct(missingArticles)}`);
+  console.log(`Missing real images:    ${pct(missingImages)}`);
+  console.log(`  (placeholder only):   ${placeholderOnly}`);
+  console.log(`  (no primary image):   ${missingPrimaryImage}`);
+  console.log(`Missing materials:      ${pct(missingMaterials)}`);
+  console.log(`Sparse materials (<3):  ${pct(sparseMaterials)}`);
+  console.log(`Missing description:    ${pct(missingDescription)}`);
+  console.log(`Missing origin:         ${pct(missingOrigin)}`);
+  console.log(`Missing variations:     ${pct(missingVariations)}`);
+
+  console.log("\n─── Patterns Needing Attention ─────────────────────\n");
+
+  const top30 = gapDetails.slice(0, 30);
+  for (const p of top30) {
+    console.log(`  ${p.name.padEnd(35)} missing: ${p.gaps.join(", ")}`);
+  }
+  if (gapDetails.length > 30) {
+    console.log(`  ... and ${gapDetails.length - 30} more patterns with gaps`);
+  }
+
+  console.log("\n─── Recommended Actions ────────────────────────────\n");
+
+  if (missingSteps > 0 || missingVideos > 0) {
+    console.log(`  npx tsx src/pipeline/cli.ts enrich --limit=${Math.min(missingSteps + missingVideos, 999)}`);
+    console.log("    → Discovers videos & blogs, extracts tying steps\n");
+  }
+  if (missingImages > 0 || placeholderOnly > 0) {
+    console.log("  npx tsx src/pipeline/cli.ts images --force");
+    console.log("    → Re-discovers images for ALL patterns with improved pipeline\n");
+  }
+
+  console.log("═══════════════════════════════════════════════════\n");
+
+  log.success("Analysis complete");
+}
+
 // ─── COMMAND: validate-resources ─────────────────────────────────────────────
 
 async function cmdValidateResources(args: string[]) {
@@ -2132,9 +2246,12 @@ Commands:
   enrich [slugs...] [--dry-run] [--limit=N]
                                Enrich existing patterns with missing tying
                                steps, video resources, and materials
-  images [slugs...]            Discover real images for fly patterns
+  analyze                      Show detailed gap analysis for all patterns
+                               Reports missing steps, videos, images, etc.
+  images [slugs...] [--force]  Discover real images for fly patterns
                                Uses Google CSE, Bing, and YouTube thumbnails
                                Validates each image with Claude vision
+                               --force re-processes ALL patterns (not just gaps)
   clean-images [--dry-run]     Delete all pipeline-discovered images
   clean-images --revalidate [--dry-run]
                                Re-validate existing images with Claude vision
@@ -2226,6 +2343,9 @@ Commands:
         break;
       case "validate-resources":
         await cmdValidateResources(args);
+        break;
+      case "analyze":
+        await cmdAnalyze();
         break;
       case "status":
         await cmdStatus();
