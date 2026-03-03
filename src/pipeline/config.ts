@@ -7,7 +7,7 @@ export const PIPELINE_CONFIG = {
   },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY ?? "",
-    model: "claude-sonnet-4-20250514" as const,
+    model: "claude-haiku-4-5-20251001" as const,
     maxTokens: 4096,
   },
   scraping: {

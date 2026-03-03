@@ -33,6 +33,7 @@ import type { ExtractedHatchEntry } from "./scrapers/hatch-charts";
 import {
   createStagedSource,
   updateStagedSourceContent,
+  updateStagedSourceStatus,
   getStagedSourcesByStatus,
   createStagedExtraction,
   getStagedExtractions,
@@ -297,12 +298,18 @@ async function cmdExtract() {
       } else {
         failed++;
       }
+
+      // Mark source as extracted so it won't be re-processed
+      await updateStagedSourceStatus(source.id, "extracted");
     } catch (err) {
       log.error("Extraction failed", {
         id: source.id,
         error: String(err),
       });
       failed++;
+
+      // Still mark as extracted to avoid re-processing on retry
+      await updateStagedSourceStatus(source.id, "extracted");
     }
   }
 
