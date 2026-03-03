@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { readFileSync } from "fs";
 import { prisma } from "@/lib/prisma";
 import { validateConfig, PIPELINE_CONFIG } from "./config";
 import { createLogger, progressBar } from "./utils/logger";
@@ -2201,13 +2202,31 @@ async function cmdValidateResources(args: string[]) {
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  const [command, ...args] = process.argv.slice(2);
+  const [command, ...rawArgs] = process.argv.slice(2);
+
+  // Expand --file <path> into pattern names (one per line)
+  const args: string[] = [];
+  for (let i = 0; i < rawArgs.length; i++) {
+    if (rawArgs[i] === "--file" && rawArgs[i + 1]) {
+      const lines = readFileSync(rawArgs[i + 1]!, "utf-8")
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith("#"));
+      args.push(...lines);
+      i++; // skip the file path arg
+    } else {
+      args.push(rawArgs[i]!);
+    }
+  }
 
   if (!command) {
     console.log(`
 FlyArchive Data Pipeline
 
-Usage: tsx src/pipeline/cli.ts <command> [args]
+Usage: tsx src/pipeline/cli.ts <command> [args] [--file <path>]
+
+Global options:
+  --file <path>              Read pattern names from a file (one per line, # comments ignored)
 
 Commands:
   discover [patterns...]       Search Brave + blogs for fly pattern sources
