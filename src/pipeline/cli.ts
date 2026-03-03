@@ -1704,7 +1704,7 @@ The content should be appropriate for the ${technique.difficulty} difficulty lev
 
   // Discover videos for any techniques that still need them
   const noVideoTechniques = toProcess.filter((t) => t.videos.length < 2);
-  if (noVideoTechniques.length > 0 && PIPELINE_CONFIG.youtube.apiKey) {
+  if (noVideoTechniques.length > 0 && process.env.BRAVE_SEARCH_API_KEY) {
     log.info(`Discovering videos for ${noVideoTechniques.length} techniques...`);
     for (const t of noVideoTechniques) {
       try {
@@ -1713,8 +1713,8 @@ The content should be appropriate for the ${technique.difficulty} difficulty lev
         log.error(`Video discovery failed for ${t.name}`, { error: String(err) });
       }
     }
-  } else if (!PIPELINE_CONFIG.youtube.apiKey) {
-    log.warn("Skipping video discovery — YOUTUBE_API_KEY not set");
+  } else if (!process.env.BRAVE_SEARCH_API_KEY) {
+    log.warn("Skipping video discovery — BRAVE_SEARCH_API_KEY not set");
   }
 
   log.success(`Technique enrichment complete: ${enriched} enriched, ${failed} failed, ${incomplete.length - toProcess.length} remaining`);
@@ -2210,7 +2210,8 @@ FlyArchive Data Pipeline
 Usage: tsx src/pipeline/cli.ts <command> [args]
 
 Commands:
-  discover [patterns...]       Search YouTube & blogs for fly pattern sources
+  discover [patterns...]       Search Brave + blogs for fly pattern sources
+                               YouTube videos found via Brave (no YT API needed)
                                If no patterns specified, uses the full seed list
   scrape                       Scrape content from discovered sources
   extract                      Run LLM extraction on scraped content
@@ -2246,6 +2247,7 @@ Commands:
   enrich [slugs...] [--dry-run] [--limit=N]
                                Enrich existing patterns with missing tying
                                steps, video resources, and materials
+                               Uses Brave Search for YouTube discovery
   analyze                      Show detailed gap analysis for all patterns
                                Reports missing steps, videos, images, etc.
   images [slugs...] [--force]  Discover real images for fly patterns

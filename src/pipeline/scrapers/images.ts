@@ -675,10 +675,9 @@ export async function discoverPatternImages(
   existingVideoIds: string[] = [],
   stagedHtmlContent: string[] = []
 ): Promise<DiscoveredImage[]> {
-  // Use multiple query variants to cast a wider net
+  // Single consolidated query to minimize API costs
   const queries = [
-    `${patternName} fly pattern close up photo`,
-    `${patternName} fly tying recipe`,
+    `${patternName} fly fishing photo`,
   ];
 
   let images: DiscoveredImage[] = [];

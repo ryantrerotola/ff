@@ -1,15 +1,9 @@
 export const PIPELINE_CONFIG = {
   youtube: {
-    apiKey: process.env.YOUTUBE_API_KEY ?? "",
     maxResultsPerQuery: 10,
     searchQueries: [
-      "{pattern} fly tying",
-      "how to tie {pattern} fly",
-      "{pattern} fly tying tutorial",
-      "{pattern} fly pattern",
+      "site:youtube.com {pattern} fly tying tutorial how to tie",
     ],
-    quotaCostPerSearch: 100,
-    dailyQuotaLimit: 10000,
   },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY ?? "",
@@ -34,8 +28,8 @@ export const PIPELINE_CONFIG = {
 export function validateConfig(): string[] {
   const errors: string[] = [];
 
-  if (!PIPELINE_CONFIG.youtube.apiKey) {
-    errors.push("YOUTUBE_API_KEY environment variable is required");
+  if (!process.env.BRAVE_SEARCH_API_KEY) {
+    errors.push("BRAVE_SEARCH_API_KEY environment variable is required");
   }
   if (!PIPELINE_CONFIG.anthropic.apiKey) {
     errors.push("ANTHROPIC_API_KEY environment variable is required");
