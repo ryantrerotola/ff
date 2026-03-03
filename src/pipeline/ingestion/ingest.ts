@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "../utils/logger";
+import { sanitizeMaterialType } from "../normalization/normalizer";
 import type { ConsensusPattern } from "../types";
 import type {
   FlyCategory,
@@ -66,17 +67,18 @@ export async function ingestConsensusPattern(
 
     // Step 3: Upsert materials and link them to the pattern
     for (const mat of consensus.materials) {
+      const safeType = sanitizeMaterialType(mat.type) as MaterialType;
       const material = await tx.material.upsert({
         where: {
           name_type: {
             name: mat.name,
-            type: mat.type as MaterialType,
+            type: safeType,
           },
         },
         update: {},
         create: {
           name: mat.name,
-          type: mat.type as MaterialType,
+          type: safeType,
         },
       });
 
