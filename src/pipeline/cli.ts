@@ -268,6 +268,7 @@ async function cmdExtract() {
 
     if (!source.rawContent) {
       log.warn("No content for source", { id: source.id });
+      await updateStagedSourceStatus(source.id, "extracted");
       failed++;
       continue;
     }
