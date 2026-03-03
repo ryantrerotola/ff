@@ -29,6 +29,12 @@ export default function AdminLayout({
               Dashboard
             </Link>
             <Link
+              href="/admin/patterns"
+              className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+            >
+              Patterns
+            </Link>
+            <Link
               href="/admin/review"
               className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
             >
