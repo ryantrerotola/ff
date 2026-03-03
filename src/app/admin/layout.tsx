@@ -40,6 +40,12 @@ export default function AdminLayout({
             >
               Moderation
             </Link>
+            <Link
+              href="/admin/images"
+              className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+            >
+              Images
+            </Link>
           </nav>
         </div>
       </header>
