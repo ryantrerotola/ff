@@ -30,18 +30,53 @@ export async function ingestConsensusPattern(
   });
 
   return prisma.$transaction(async (tx) => {
-    // Step 1: Upsert the FlyPattern
-    const flyPattern = await tx.flyPattern.upsert({
+    // Step 1: Check if pattern already exists — skip if so to avoid
+    // destructive overwrites of production data
+    const existing = await tx.flyPattern.findUnique({
       where: { slug: consensus.slug },
-      update: {
-        name: consensus.patternName,
-        category: consensus.category.value as FlyCategory,
-        difficulty: consensus.difficulty.value as Difficulty,
-        waterType: consensus.waterType.value as WaterType,
-        description: consensus.description,
-        origin: consensus.origin,
-      },
-      create: {
+      select: { id: true },
+    });
+
+    if (existing) {
+      log.info("Pattern already exists, skipping re-ingest", {
+        pattern: consensus.patternName,
+        slug: consensus.slug,
+      });
+
+      // Still add any new source URLs as resources
+      for (const source of sourceUrls) {
+        const existingResource = await tx.resource.findFirst({
+          where: {
+            flyPatternId: existing.id,
+            url: source.url,
+          },
+        });
+
+        if (!existingResource) {
+          let resourceType: ResourceType = "blog";
+          if (source.type === "youtube") resourceType = "video";
+          else if (source.url.endsWith(".pdf")) resourceType = "pdf";
+
+          await tx.resource.create({
+            data: {
+              flyPatternId: existing.id,
+              type: resourceType,
+              title: source.title,
+              creatorName: source.creator || "Unknown",
+              platform: source.platform || "Unknown",
+              url: source.url,
+              qualityScore: 3,
+            },
+          });
+        }
+      }
+
+      return existing.id;
+    }
+
+    // Step 2: Create new FlyPattern
+    const flyPattern = await tx.flyPattern.create({
+      data: {
         name: consensus.patternName,
         slug: consensus.slug,
         category: consensus.category.value as FlyCategory,
@@ -52,20 +87,7 @@ export async function ingestConsensusPattern(
       },
     });
 
-    // Step 2: Clear existing related data for clean re-import
-    await tx.flyPatternMaterial.deleteMany({
-      where: { flyPatternId: flyPattern.id },
-    });
-    await tx.variation.deleteMany({
-      where: { flyPatternId: flyPattern.id },
-    });
-    await tx.tyingStep.deleteMany({
-      where: { flyPatternId: flyPattern.id },
-    });
-    // Keep existing resources; add new ones only
-    // Keep existing feedback
-
-    // Step 3: Upsert materials and link them to the pattern
+    // Step 3: Create materials and link them to the pattern
     for (const mat of consensus.materials) {
       const safeType = sanitizeMaterialType(mat.type) as MaterialType;
       const material = await tx.material.upsert({
@@ -160,14 +182,14 @@ export async function ingestConsensusPattern(
 
     // Step 6: Add source URLs as resources (if not already present)
     for (const source of sourceUrls) {
-      const existing = await tx.resource.findFirst({
+      const existingResource = await tx.resource.findFirst({
         where: {
           flyPatternId: flyPattern.id,
           url: source.url,
         },
       });
 
-      if (!existing) {
+      if (!existingResource) {
         let resourceType: ResourceType = "blog";
         if (source.type === "youtube") resourceType = "video";
         else if (source.url.endsWith(".pdf")) resourceType = "pdf";
