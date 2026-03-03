@@ -47,6 +47,16 @@ export async function updateStagedSourceContent(
   });
 }
 
+export async function updateStagedSourceStatus(
+  id: string,
+  status: StagedStatus
+) {
+  return prisma.stagedSource.update({
+    where: { id },
+    data: { status },
+  });
+}
+
 export async function getStagedSourcesByStatus(status: StagedStatus) {
   return prisma.stagedSource.findMany({
     where: { status },
