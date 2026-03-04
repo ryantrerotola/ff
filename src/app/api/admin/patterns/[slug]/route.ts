@@ -77,7 +77,21 @@ export async function GET(
     return NextResponse.json({ error: "Pattern not found" }, { status: 404 });
   }
 
-  return NextResponse.json(pattern);
+  // Get previous and next patterns (alphabetical order by name)
+  const [prev, next] = await Promise.all([
+    prisma.flyPattern.findFirst({
+      where: { name: { lt: pattern.name } },
+      orderBy: { name: "desc" },
+      select: { slug: true, name: true },
+    }),
+    prisma.flyPattern.findFirst({
+      where: { name: { gt: pattern.name } },
+      orderBy: { name: "asc" },
+      select: { slug: true, name: true },
+    }),
+  ]);
+
+  return NextResponse.json({ ...pattern, _nav: { prev, next } });
 }
 
 export async function PATCH(

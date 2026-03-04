@@ -120,6 +120,18 @@ export default function RootLayout({
                 >
                   Fly Box
                 </Link>
+                <Link
+                  href="/to-tie"
+                  className="flex min-h-[44px] items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                >
+                  To Tie
+                </Link>
+                <Link
+                  href="/to-buy"
+                  className="flex min-h-[44px] items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                >
+                  To Buy
+                </Link>
                 <UserMenu />
               </nav>
               <div className="lg:hidden">

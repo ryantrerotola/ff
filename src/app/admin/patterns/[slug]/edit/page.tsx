@@ -51,6 +51,11 @@ interface TyingStep {
   tip: string | null;
 }
 
+interface PatternNav {
+  prev: { slug: string; name: string } | null;
+  next: { slug: string; name: string } | null;
+}
+
 interface PatternDetail {
   id: string;
   name: string;
@@ -64,6 +69,7 @@ interface PatternDetail {
   images: PatternImage[];
   resources: Resource[];
   tyingSteps: TyingStep[];
+  _nav: PatternNav;
 }
 
 type EditingMaterial = {
@@ -247,7 +253,25 @@ export default function AdminPatternEditPage() {
         </Link>
         <span>/</span>
         <span className="text-gray-900 dark:text-white">{pattern.name}</span>
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-3">
+          {pattern._nav.prev && (
+            <Link
+              href={`/admin/patterns/${pattern._nav.prev.slug}/edit`}
+              className="rounded border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              title={pattern._nav.prev.name}
+            >
+              &larr; Prev
+            </Link>
+          )}
+          {pattern._nav.next && (
+            <Link
+              href={`/admin/patterns/${pattern._nav.next.slug}/edit`}
+              className="rounded border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              title={pattern._nav.next.name}
+            >
+              Next &rarr;
+            </Link>
+          )}
           <Link
             href={`/patterns/${pattern.slug}`}
             className="text-brand-600 hover:text-brand-700 dark:text-brand-400"
@@ -618,6 +642,26 @@ export default function AdminPatternEditPage() {
         >
           &larr; Back to patterns
         </Link>
+        <div className="flex items-center gap-3">
+          {pattern._nav.prev && (
+            <Link
+              href={`/admin/patterns/${pattern._nav.prev.slug}/edit`}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              title={pattern._nav.prev.name}
+            >
+              &larr; Previous
+            </Link>
+          )}
+          {pattern._nav.next && (
+            <Link
+              href={`/admin/patterns/${pattern._nav.next.slug}/edit`}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              title={pattern._nav.next.name}
+            >
+              Next &rarr;
+            </Link>
+          )}
+        </div>
         <Link
           href={`/patterns/${pattern.slug}`}
           className="text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400"
