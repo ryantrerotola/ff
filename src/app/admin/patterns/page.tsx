@@ -14,6 +14,7 @@ interface PatternListItem {
   category: string;
   difficulty: string;
   waterType: string;
+  updatedAt: string;
   _count: { materials: number; images: number; variations: number };
   images: { url: string }[];
 }
@@ -153,6 +154,9 @@ export default function AdminPatternsPage() {
                   <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Images
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    Last Updated
+                  </th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Actions
                   </th>
@@ -199,6 +203,9 @@ export default function AdminPatternsPage() {
                     </td>
                     <td className="px-4 py-3 text-center text-sm text-gray-600 dark:text-gray-300">
                       {pattern._count.images}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                      {new Date(pattern.updatedAt).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">

@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
         category: true,
         difficulty: true,
         waterType: true,
+        updatedAt: true,
         _count: { select: { materials: true, images: true, variations: true } },
         images: {
           where: { isPrimary: true },
