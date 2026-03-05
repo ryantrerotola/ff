@@ -16,7 +16,7 @@ import {
   buildV2ExtractionPrompt,
 } from "./prompts/extraction";
 import { createLogger } from "../utils/logger";
-import { mapConcurrent } from "../utils/rate-limit";
+import { mapConcurrent, retry } from "../utils/rate-limit";
 import { sanitizeMaterialType } from "../normalization/normalizer";
 import type { ScrapedSource, V2ExtractedPattern, VariationCategory } from "./types";
 import { VARIATION_CATEGORIES } from "./types";
@@ -56,14 +56,17 @@ export async function extractFromSource(
   });
 
   try {
-    const response = await anthropic.messages.create({
-      model: V2_CONFIG.models.extraction,
-      max_tokens: V2_CONFIG.models.maxTokens.extraction,
-      system: V2_EXTRACTION_SYSTEM_PROMPT,
-      tools: [V2_EXTRACTION_TOOL],
-      tool_choice: { type: "tool", name: "extract_pattern" },
-      messages: [{ role: "user", content: userMessage }],
-    });
+    const response = await retry(
+      () => anthropic.messages.create({
+        model: V2_CONFIG.models.extraction,
+        max_tokens: V2_CONFIG.models.maxTokens.extraction,
+        system: V2_EXTRACTION_SYSTEM_PROMPT,
+        tools: [V2_EXTRACTION_TOOL],
+        tool_choice: { type: "tool", name: "extract_pattern" },
+        messages: [{ role: "user", content: userMessage }],
+      }),
+      { maxRetries: 2, backoffMs: 2000, label: `extraction:${patternQuery}` }
+    );
 
     const toolUseBlock = response.content.find(
       (block: { type: string }) => block.type === "tool_use"
