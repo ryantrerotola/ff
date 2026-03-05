@@ -187,7 +187,7 @@ async function searchSerperImages(
           },
           body: JSON.stringify({
             q: query,
-            num: 20,
+            num: 10,
           }),
           signal: AbortSignal.timeout(PIPELINE_CONFIG.scraping.timeoutMs),
         }),
