@@ -13,6 +13,7 @@ import {
   validateImageWithVision,
 } from "../scrapers/images";
 import { V2_CONFIG } from "./config";
+import { mapConcurrent } from "../utils/rate-limit";
 import { createLogger } from "../utils/logger";
 import type { ScrapedSource, ValidatedImage } from "./types";
 
@@ -75,42 +76,49 @@ export async function findPatternImages(
     candidates: String(candidates.length),
   });
 
-  // Validate top candidates with Claude vision
-  const validated: ValidatedImage[] = [];
-  let validationCount = 0;
+  // Split candidates: vision-validate the top N, score-gate the rest
+  const toValidate = candidates.slice(0, V2_CONFIG.images.maxVisionValidations);
+  const remainder = candidates.slice(V2_CONFIG.images.maxVisionValidations);
 
-  for (const candidate of candidates) {
-    if (validationCount >= V2_CONFIG.images.maxVisionValidations) {
-      // Beyond vision budget — include based on score alone
-      if (candidate.relevanceScore >= 0.7) {
-        validated.push({
-          url: candidate.url,
-          caption: candidate.caption,
-          source: candidate.source,
-          relevanceScore: candidate.relevanceScore,
-          visionValidated: false,
-        });
+  // Validate top candidates with Claude vision in parallel
+  const visionResults = await mapConcurrent(
+    toValidate,
+    3, // Concurrency limit for vision API
+    async (candidate) => {
+      try {
+        const isValid = await validateImageWithVision(candidate.url, patternName);
+        if (isValid) {
+          return {
+            url: candidate.url,
+            caption: candidate.caption,
+            source: candidate.source,
+            relevanceScore: candidate.relevanceScore,
+            visionValidated: true,
+          } as ValidatedImage;
+        }
+      } catch (err) {
+        log.debug("Vision validation failed", { url: candidate.url, error: String(err) });
       }
-      continue;
+      return null;
     }
+  );
 
-    try {
-      const isValid = await validateImageWithVision(candidate.url, patternName);
-      validationCount++;
+  const validated: ValidatedImage[] = visionResults.filter((r): r is ValidatedImage => r !== null);
 
-      if (isValid) {
-        validated.push({
-          url: candidate.url,
-          caption: candidate.caption,
-          source: candidate.source,
-          relevanceScore: candidate.relevanceScore,
-          visionValidated: true,
-        });
-      }
-    } catch (err) {
-      log.debug("Vision validation failed", { url: candidate.url, error: String(err) });
+  // Include high-scoring remainder without vision validation
+  for (const candidate of remainder) {
+    if (candidate.relevanceScore >= 0.7) {
+      validated.push({
+        url: candidate.url,
+        caption: candidate.caption,
+        source: candidate.source,
+        relevanceScore: candidate.relevanceScore,
+        visionValidated: false,
+      });
     }
   }
+
+  const validationCount = toValidate.length;
 
   log.success("Image pipeline complete", {
     pattern: patternName,

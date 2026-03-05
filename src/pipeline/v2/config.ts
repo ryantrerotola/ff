@@ -46,7 +46,7 @@ export const V2_CONFIG = {
     /** User agent for web requests */
     userAgent: "FlyArchive/2.0 (fly pattern database; educational use)",
     /** Request delay between scrapes (ms) */
-    requestDelayMs: 1000,
+    requestDelayMs: 300,
     /** Request timeout (ms) */
     timeoutMs: 15000,
     concurrency: 5,
@@ -82,7 +82,7 @@ export const V2_CONFIG = {
       },
     ],
     /** Delay between product link searches (ms) */
-    requestDelayMs: 1000,
+    requestDelayMs: 500,
   },
 
   qualityGate: {

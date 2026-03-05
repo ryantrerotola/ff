@@ -16,6 +16,7 @@ import {
   buildEnrichmentPrompt,
 } from "./prompts/enrichment";
 import { createLogger } from "../utils/logger";
+import { mapConcurrent, retry } from "../utils/rate-limit";
 import { sanitizeMaterialType } from "../normalization/normalizer";
 import type {
   V2ExtractedPattern,
@@ -56,23 +57,26 @@ export async function enrichExtraction(
   });
 
   try {
-    const response = await anthropic.messages.create({
-      model: V2_CONFIG.models.enrichment,
-      max_tokens: V2_CONFIG.models.maxTokens.enrichment,
-      system: V2_ENRICHMENT_SYSTEM_PROMPT,
-      tools: [V2_ENRICHMENT_TOOL],
-      tool_choice: { type: "tool", name: "review_extraction" },
-      messages: [
-        {
-          role: "user",
-          content: buildEnrichmentPrompt(
-            extraction.patternName,
-            extractedJson,
-            source.content
-          ),
-        },
-      ],
-    });
+    const response = await retry(
+      () => anthropic.messages.create({
+        model: V2_CONFIG.models.enrichment,
+        max_tokens: V2_CONFIG.models.maxTokens.enrichment,
+        system: V2_ENRICHMENT_SYSTEM_PROMPT,
+        tools: [V2_ENRICHMENT_TOOL],
+        tool_choice: { type: "tool", name: "review_extraction" },
+        messages: [
+          {
+            role: "user",
+            content: buildEnrichmentPrompt(
+              extraction.patternName,
+              extractedJson,
+              source.content
+            ),
+          },
+        ],
+      }),
+      { maxRetries: 2, backoffMs: 2000, label: `enrichment:${extraction.patternName}` }
+    );
 
     const toolUseBlock = response.content.find(
       (block: { type: string }) => block.type === "tool_use"
@@ -147,12 +151,11 @@ export async function enrichExtraction(
 export async function enrichAll(
   extractions: { extraction: V2ExtractedPattern; source: ScrapedSource }[]
 ): Promise<EnrichmentResult[]> {
-  const results: EnrichmentResult[] = [];
-
-  for (const { extraction, source } of extractions) {
-    const result = await enrichExtraction(extraction, source);
-    results.push(result);
-  }
+  const results = await mapConcurrent(
+    extractions,
+    3, // Concurrency limit for Anthropic API
+    async ({ extraction, source }) => enrichExtraction(extraction, source)
+  );
 
   log.info("Enrichment batch complete", {
     count: String(results.length),

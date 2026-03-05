@@ -16,6 +16,7 @@ import {
   buildV2ExtractionPrompt,
 } from "./prompts/extraction";
 import { createLogger } from "../utils/logger";
+import { mapConcurrent, retry } from "../utils/rate-limit";
 import { sanitizeMaterialType } from "../normalization/normalizer";
 import type { ScrapedSource, V2ExtractedPattern, VariationCategory } from "./types";
 import { VARIATION_CATEGORIES } from "./types";
@@ -55,14 +56,17 @@ export async function extractFromSource(
   });
 
   try {
-    const response = await anthropic.messages.create({
-      model: V2_CONFIG.models.extraction,
-      max_tokens: V2_CONFIG.models.maxTokens.extraction,
-      system: V2_EXTRACTION_SYSTEM_PROMPT,
-      tools: [V2_EXTRACTION_TOOL],
-      tool_choice: { type: "tool", name: "extract_pattern" },
-      messages: [{ role: "user", content: userMessage }],
-    });
+    const response = await retry(
+      () => anthropic.messages.create({
+        model: V2_CONFIG.models.extraction,
+        max_tokens: V2_CONFIG.models.maxTokens.extraction,
+        system: V2_EXTRACTION_SYSTEM_PROMPT,
+        tools: [V2_EXTRACTION_TOOL],
+        tool_choice: { type: "tool", name: "extract_pattern" },
+        messages: [{ role: "user", content: userMessage }],
+      }),
+      { maxRetries: 2, backoffMs: 2000, label: `extraction:${patternQuery}` }
+    );
 
     const toolUseBlock = response.content.find(
       (block: { type: string }) => block.type === "tool_use"
@@ -167,14 +171,21 @@ export async function extractAll(
   sources: ScrapedSource[],
   patternQuery: string
 ): Promise<{ extraction: V2ExtractedPattern; source: ScrapedSource }[]> {
-  const results: { extraction: V2ExtractedPattern; source: ScrapedSource }[] = [];
-
-  for (const source of sources) {
-    const extraction = await extractFromSource(source, patternQuery);
-    if (extraction) {
-      results.push({ extraction, source });
+  const allResults = await mapConcurrent(
+    sources,
+    3, // Concurrency limit for Anthropic API
+    async (source) => {
+      const extraction = await extractFromSource(source, patternQuery);
+      if (extraction) {
+        return { extraction, source };
+      }
+      return null;
     }
-  }
+  );
+
+  const results = allResults.filter(
+    (r): r is { extraction: V2ExtractedPattern; source: ScrapedSource } => r !== null
+  );
 
   log.info("Extraction batch complete", {
     attempted: String(sources.length),
