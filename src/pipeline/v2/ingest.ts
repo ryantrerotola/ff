@@ -52,27 +52,53 @@ export async function ingestV2Pattern(
       select: { id: true },
     });
 
+    let flyPatternId: string;
+
     if (existing) {
-      log.info("Pattern already exists, updating sources", {
+      log.info("Pattern already exists, replacing with V2 data", {
         pattern: consensus.patternName,
       });
-      await addNewResources(tx, existing.id, sources);
-      await addNewImages(tx, existing.id, images);
-      return existing.id;
-    }
 
-    // Create FlyPattern
-    const flyPattern = await tx.flyPattern.create({
-      data: {
-        name: consensus.patternName,
-        slug: consensus.slug,
-        category: consensus.category.value as FlyCategory,
-        difficulty: consensus.difficulty.value as Difficulty,
-        waterType: consensus.waterType.value as WaterType,
-        description: consensus.description,
-        origin: consensus.origin,
-      },
-    });
+      // Delete pipeline-generated child records (preserve user data: comments, likes, ratings, saved patterns)
+      await tx.tyingStep.deleteMany({ where: { flyPatternId: existing.id } });
+      await tx.variationOverride.deleteMany({
+        where: { variation: { flyPatternId: existing.id } },
+      });
+      await tx.variation.deleteMany({ where: { flyPatternId: existing.id } });
+      await tx.flyPatternMaterial.deleteMany({ where: { flyPatternId: existing.id } });
+      await tx.resource.deleteMany({ where: { flyPatternId: existing.id } });
+      await tx.patternImage.deleteMany({ where: { flyPatternId: existing.id } });
+
+      // Update the pattern itself with V2 consensus data
+      await tx.flyPattern.update({
+        where: { id: existing.id },
+        data: {
+          name: consensus.patternName,
+          category: consensus.category.value as FlyCategory,
+          difficulty: consensus.difficulty.value as Difficulty,
+          waterType: consensus.waterType.value as WaterType,
+          description: consensus.description,
+          origin: consensus.origin,
+        },
+      });
+
+      flyPatternId = existing.id;
+    } else {
+      // Create new FlyPattern
+      const flyPattern = await tx.flyPattern.create({
+        data: {
+          name: consensus.patternName,
+          slug: consensus.slug,
+          category: consensus.category.value as FlyCategory,
+          difficulty: consensus.difficulty.value as Difficulty,
+          waterType: consensus.waterType.value as WaterType,
+          description: consensus.description,
+          origin: consensus.origin,
+        },
+      });
+
+      flyPatternId = flyPattern.id;
+    }
 
     // Create materials
     for (const mat of consensus.materials) {
@@ -85,7 +111,7 @@ export async function ingestV2Pattern(
 
       await tx.flyPatternMaterial.create({
         data: {
-          flyPatternId: flyPattern.id,
+          flyPatternId,
           materialId: material.id,
           customColor: mat.color,
           customSize: mat.size,
@@ -145,7 +171,7 @@ export async function ingestV2Pattern(
     for (const variation of consensus.variations) {
       const createdVariation = await tx.variation.create({
         data: {
-          flyPatternId: flyPattern.id,
+          flyPatternId,
           name: variation.name,
           description: variation.description,
         },
@@ -171,7 +197,7 @@ export async function ingestV2Pattern(
     if (consensus.tyingSteps.length > 0) {
       await tx.tyingStep.createMany({
         data: consensus.tyingSteps.map((step) => ({
-          flyPatternId: flyPattern.id,
+          flyPatternId,
           position: step.position,
           title: step.title,
           instruction: step.instruction,
@@ -181,20 +207,21 @@ export async function ingestV2Pattern(
     }
 
     // Add source resources
-    await addNewResources(tx, flyPattern.id, sources);
+    await addNewResources(tx, flyPatternId, sources);
 
     // Add validated images
-    await addNewImages(tx, flyPattern.id, images);
+    await addNewImages(tx, flyPatternId, images);
 
     log.success("Pattern ingested", {
       pattern: consensus.patternName,
-      id: flyPattern.id,
+      id: flyPatternId,
       materials: String(consensus.materials.length),
       steps: String(consensus.tyingSteps.length),
       images: String(images.length),
+      replaced: String(!!existing),
     });
 
-    return flyPattern.id;
+    return flyPatternId;
   });
 }
 
