@@ -16,6 +16,7 @@ import {
   buildEnrichmentPrompt,
 } from "./prompts/enrichment";
 import { createLogger } from "../utils/logger";
+import { mapConcurrent } from "../utils/rate-limit";
 import { sanitizeMaterialType } from "../normalization/normalizer";
 import type {
   V2ExtractedPattern,
@@ -147,12 +148,11 @@ export async function enrichExtraction(
 export async function enrichAll(
   extractions: { extraction: V2ExtractedPattern; source: ScrapedSource }[]
 ): Promise<EnrichmentResult[]> {
-  const results: EnrichmentResult[] = [];
-
-  for (const { extraction, source } of extractions) {
-    const result = await enrichExtraction(extraction, source);
-    results.push(result);
-  }
+  const results = await mapConcurrent(
+    extractions,
+    3, // Concurrency limit for Anthropic API
+    async ({ extraction, source }) => enrichExtraction(extraction, source)
+  );
 
   log.info("Enrichment batch complete", {
     count: String(results.length),

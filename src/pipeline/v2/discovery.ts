@@ -33,10 +33,11 @@ export async function discoverYouTubeSources(
   const results: DiscoveredSource[] = [];
   const seenUrls = new Set<string>();
 
-  for (const template of V2_CONFIG.discovery.youtubeQueries) {
-    const query = template.replace("{pattern}", patternName);
-    const sources = await searchBrave(query, apiKey);
+  // Run all YouTube queries in parallel
+  const queries = V2_CONFIG.discovery.youtubeQueries.map((t) => t.replace("{pattern}", patternName));
+  const allSources = await Promise.all(queries.map((q) => searchBrave(q, apiKey)));
 
+  for (const sources of allSources) {
     for (const source of sources) {
       // Only keep YouTube URLs
       if (!source.url.includes("youtube.com/watch") && !source.url.includes("youtu.be/")) {
@@ -84,10 +85,11 @@ export async function discoverWebSources(
   const results: DiscoveredSource[] = [];
   const seenUrls = new Set<string>();
 
-  for (const template of V2_CONFIG.discovery.webQueries) {
-    const query = template.replace("{pattern}", patternName);
-    const sources = await searchBrave(query, apiKey);
+  // Run all web queries in parallel
+  const queries = V2_CONFIG.discovery.webQueries.map((t) => t.replace("{pattern}", patternName));
+  const allSources = await Promise.all(queries.map((q) => searchBrave(q, apiKey)));
 
+  for (const sources of allSources) {
     for (const source of sources) {
       // Skip YouTube URLs (handled separately)
       if (source.url.includes("youtube.com") || source.url.includes("youtu.be")) {

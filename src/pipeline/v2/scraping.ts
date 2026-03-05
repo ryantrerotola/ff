@@ -8,7 +8,7 @@
 
 import * as cheerio from "cheerio";
 import { V2_CONFIG } from "./config";
-import { createRateLimiter, retry } from "../utils/rate-limit";
+import { createRateLimiter, retry, mapConcurrent } from "../utils/rate-limit";
 import { createLogger } from "../utils/logger";
 import { fetchTranscript } from "../scrapers/youtube";
 import type { DiscoveredSource, ScrapedSource, InlineImage } from "./types";
@@ -24,27 +24,32 @@ const rateLimit = createRateLimiter(V2_CONFIG.scraping.requestDelayMs);
 export async function scrapeAllSources(
   sources: DiscoveredSource[]
 ): Promise<ScrapedSource[]> {
-  const results: ScrapedSource[] = [];
+  const allResults = await mapConcurrent(
+    sources,
+    V2_CONFIG.scraping.concurrency,
+    async (source) => {
+      try {
+        const scraped =
+          source.sourceType === "youtube"
+            ? await scrapeYouTubeSource(source)
+            : await scrapeWebSource(source);
 
-  for (const source of sources) {
-    try {
-      const scraped =
-        source.sourceType === "youtube"
-          ? await scrapeYouTubeSource(source)
-          : await scrapeWebSource(source);
-
-      if (scraped && scraped.content.length >= V2_CONFIG.extraction.minContentLength) {
-        results.push(scraped);
-      } else if (scraped) {
-        log.warn("Content too short, skipping", {
-          url: source.url,
-          length: String(scraped.content.length),
-        });
+        if (scraped && scraped.content.length >= V2_CONFIG.extraction.minContentLength) {
+          return scraped;
+        } else if (scraped) {
+          log.warn("Content too short, skipping", {
+            url: source.url,
+            length: String(scraped.content.length),
+          });
+        }
+      } catch (err) {
+        log.error("Scrape failed", { url: source.url, error: String(err) });
       }
-    } catch (err) {
-      log.error("Scrape failed", { url: source.url, error: String(err) });
+      return null;
     }
-  }
+  );
+
+  const results = allResults.filter((r): r is ScrapedSource => r !== null);
 
   log.success("Scraping complete", {
     attempted: String(sources.length),

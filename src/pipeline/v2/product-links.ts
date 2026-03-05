@@ -6,7 +6,7 @@
  */
 
 import { V2_CONFIG } from "./config";
-import { createRateLimiter, retry } from "../utils/rate-limit";
+import { createRateLimiter, retry, mapConcurrent } from "../utils/rate-limit";
 import { createLogger } from "../utils/logger";
 import { prisma } from "@/lib/prisma";
 import type { V2ConsensusMaterial, ProductLink } from "./types";
@@ -29,36 +29,40 @@ export async function findProductLinks(
     return [];
   }
 
-  const allLinks: ProductLink[] = [];
+  // Build search tasks: one per material × retailer combination
+  const searchTasks: { material: V2ConsensusMaterial; searchName: string; retailer: typeof V2_CONFIG.productLinks.retailers[number] }[] = [];
 
   for (const material of materials) {
-    // Build a search-friendly material name
     const searchName = buildSearchName(material);
     if (!searchName) continue;
 
     for (const retailer of V2_CONFIG.productLinks.retailers) {
-      // Check cache: do we already have a link for this material+retailer?
+      searchTasks.push({ material, searchName, retailer });
+    }
+  }
+
+  const results = await mapConcurrent(
+    searchTasks,
+    3, // Concurrency limit for Brave API
+    async ({ material, searchName, retailer }) => {
+      // Check cache first
       const cached = await checkCache(material.name, retailer.name);
       if (cached) {
-        allLinks.push({
+        return {
           materialName: material.name,
           retailer: retailer.name,
           productUrl: cached.url,
-          productName: cached.url, // We store URL as product name in cache
+          productName: cached.url,
           price: null,
-        });
-        continue;
+        } as ProductLink;
       }
 
-      // Search Brave
       const query = retailer.searchTemplate.replace("{material}", searchName);
-      const link = await searchForProduct(query, apiKey, material.name, retailer.name);
-
-      if (link) {
-        allLinks.push(link);
-      }
+      return searchForProduct(query, apiKey, material.name, retailer.name);
     }
-  }
+  );
+
+  const allLinks = results.filter((r): r is ProductLink => r !== null);
 
   log.success("Product link search complete", {
     materials: String(materials.length),
