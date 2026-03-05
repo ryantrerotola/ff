@@ -164,8 +164,9 @@ export default function ToTiePage() {
       const res = await fetch(`/api/patterns?search=${encodeURIComponent(query)}&limit=8`);
       if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
+      const patterns = data.data ?? data.patterns ?? data;
       setSearchResults(
-        (data.patterns ?? data).map((p: PatternSearchResult) => ({
+        (Array.isArray(patterns) ? patterns : []).map((p: PatternSearchResult) => ({
           id: p.id,
           name: p.name,
           slug: p.slug,
