@@ -222,7 +222,7 @@ export async function ingestV2Pattern(
     });
 
     return flyPatternId;
-  });
+  }, { timeout: 30000 }); // 30s — ingestion creates 100+ DB records per pattern
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────

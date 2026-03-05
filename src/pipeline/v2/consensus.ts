@@ -451,13 +451,17 @@ function buildVariationConsensus(
     }
   }
 
+  // Cap at 8 variations — too many creates excessive DB work during ingestion
+  // and degrades UX. Prefer explicit (source-mentioned) over detected.
+  const capped = variations.slice(0, 8);
+
   log.info("Variation consensus", {
     explicit: String(explicit.length),
     detected: String(detected.length),
-    final: String(variations.length),
+    final: String(capped.length),
   });
 
-  return variations;
+  return capped;
 }
 
 /**
