@@ -41,6 +41,18 @@ WATER TYPE:
 - saltwater: Ocean, flats, inshore
 - both: Works in both
 
+VARIATION CATEGORIES:
+Variations are distinct ways a pattern is commonly tied. Categorize each variation:
+- color: Same materials, different color scheme (e.g., "Chartreuse & White Woolly Bugger" vs olive/black default)
+- weight: Different weighting approaches — beadhead, cone head, lead wraps, or unweighted. Primarily relevant for nymph patterns.
+- wing_style: Parachute post vs upright/traditional wings. Only applies to dry flies.
+- hackle: Soft hackle collar vs standard hackle or no hackle. Primarily relevant for nymph and wet fly patterns.
+- size: Tied on significantly different hook sizes for different species/conditions
+- regional: Geographic adaptations of the pattern
+- material: Fundamentally different material choices beyond just color swaps
+
+IMPORTANT: The default pattern you extract should represent the MOST COMMON version of the pattern as described in the source. Variations are the ALTERNATIVES, not the default.
+
 CRITICAL EXTRACTION RULES:
 1. List ALL materials in TYING ORDER
 2. A pattern CAN have multiple materials of the same type. For example: body + underbody, two different hackles, underwing + overwing. Extract EACH as a separate material entry.
@@ -48,7 +60,7 @@ CRITICAL EXTRACTION RULES:
 4. Include specific product names and brand names when mentioned
 5. Include colors and sizes when specified
 6. Mark materials as required=true unless explicitly optional
-7. If variations exist, include them in the variations array
+7. Extract variations with their category. The main pattern should be the most common version. Variations are the alternatives.
 8. If substitutes are mentioned, include them in the substitutions array
 9. Extract tying steps with detailed instructions when present
 10. Write a clear, informative description
@@ -154,22 +166,34 @@ export const V2_EXTRACTION_TOOL = {
         items: {
           type: "object" as const,
           properties: {
-            name: { type: "string" as const },
-            description: { type: "string" as const },
+            name: {
+              type: "string" as const,
+              description: "Name of the variation (e.g., 'Parachute Adams', 'Beadhead Prince Nymph')",
+            },
+            description: {
+              type: "string" as const,
+              description: "Brief description of what makes this variation different",
+            },
+            category: {
+              type: "string" as const,
+              enum: ["color", "weight", "wing_style", "hackle", "size", "regional", "material"],
+              description: "The axis of variation: color, weight (bead/cone/lead/unweighted), wing_style (parachute/upright, dry flies only), hackle (soft hackle, nymph/wet only), size, regional, or material",
+            },
             materialChanges: {
               type: "array" as const,
               items: {
                 type: "object" as const,
                 properties: {
-                  original: { type: "string" as const },
-                  replacement: { type: "string" as const },
+                  original: { type: "string" as const, description: "Material in the default pattern being changed" },
+                  replacement: { type: "string" as const, description: "Replacement material in this variation" },
                 },
                 required: ["original", "replacement"],
               },
             },
           },
-          required: ["name", "description", "materialChanges"],
+          required: ["name", "description", "category", "materialChanges"],
         },
+        description: "Known variations of this pattern. The main extraction should be the MOST COMMON version.",
       },
       substitutions: {
         type: "array" as const,

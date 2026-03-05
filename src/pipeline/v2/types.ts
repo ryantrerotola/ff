@@ -5,11 +5,52 @@
 export type {
   RawYouTubeResult,
   RawBlogResult,
-  ExtractedVariation,
   ExtractedSubstitution,
   ConsensusEntry,
   BlogSiteConfig,
 } from "../types";
+
+// ─── Variation Types ──────────────────────────────────────────────────────
+
+/**
+ * Variation categories describe the axis along which a pattern varies.
+ * - color: Same materials, different color scheme (e.g., olive vs chartreuse Woolly Bugger)
+ * - weight: Bead head, cone head, lead wraps, or unweighted (primarily nymph patterns)
+ * - wing_style: Parachute vs upright wings (dry flies only)
+ * - hackle: Soft hackle vs standard or no hackle (nymph and wet fly patterns)
+ * - size: Different hook sizes targeting different species/conditions
+ * - regional: Geographic adaptations (e.g., Western vs Eastern variations)
+ * - material: Fundamentally different material choices (not just color swaps)
+ */
+export const VARIATION_CATEGORIES = [
+  "color", "weight", "wing_style", "hackle", "size", "regional", "material",
+] as const;
+
+export type VariationCategory = (typeof VARIATION_CATEGORIES)[number];
+
+export interface V2ExtractedVariation {
+  name: string;
+  description: string;
+  category: VariationCategory;
+  materialChanges: {
+    original: string;
+    replacement: string;
+  }[];
+}
+
+export interface V2ConsensusVariation {
+  name: string;
+  description: string;
+  category: VariationCategory;
+  materialChanges: {
+    original: string;
+    replacement: string;
+  }[];
+  /** How many sources explicitly mention this variation */
+  sourceCount: number;
+  /** Whether this was detected from source disagreements vs explicitly mentioned */
+  detectedFromDisagreement: boolean;
+}
 
 // ─── Discovery ─────────────────────────────────────────────────────────────
 
@@ -86,7 +127,7 @@ export interface V2ExtractedPattern {
   description: string;
   origin: string | null;
   materials: V2ExtractedMaterial[];
-  variations: import("../types").ExtractedVariation[];
+  variations: V2ExtractedVariation[];
   substitutions: import("../types").ExtractedSubstitution[];
   tyingSteps: V2ExtractedStep[];
 }
@@ -144,7 +185,8 @@ export interface V2ConsensusPattern {
   description: string;
   origin: string | null;
   materials: V2ConsensusMaterial[];
-  variations: import("../types").ExtractedVariation[];
+  /** Variations detected from source disagreements + explicitly mentioned */
+  variations: V2ConsensusVariation[];
   /** Source-mentioned + LLM-generated substitutions merged */
   substitutions: import("../types").ExtractedSubstitution[];
   /** Sonnet-merged/enhanced tying steps */

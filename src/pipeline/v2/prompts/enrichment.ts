@@ -10,9 +10,23 @@ export const V2_ENRICHMENT_SYSTEM_PROMPT = `You are a master fly tyer reviewing 
 Your job is to:
 1. VALIDATE the materials list — flag missing or incorrect materials
 2. ENRICH tying steps — add detail, fix ordering, add tips for common mistakes
-3. SCORE completeness — rate how complete the extraction is
-4. FLAG issues — specific problems with the extraction
-5. SUGGEST substitutions — common material substitutions fly tyers use
+3. VALIDATE and ENRICH variations — ensure variations are correctly categorized, add well-known common variations the source may have missed
+4. SCORE completeness — rate how complete the extraction is
+5. FLAG issues — specific problems with the extraction
+6. SUGGEST substitutions — common material substitutions fly tyers use
+
+VARIATION VALIDATION RULES:
+- Verify each variation's category is correct:
+  - "color" — only color changes, same materials (e.g., black vs olive Woolly Bugger)
+  - "weight" — beadhead, cone head, lead wraps, or unweighted (primarily nymph patterns)
+  - "wing_style" — parachute vs upright wings (DRY FLIES ONLY — flag if applied to non-dry patterns)
+  - "hackle" — soft hackle vs standard (NYMPH and WET patterns only)
+  - "size" — significantly different hook sizes
+  - "regional" — geographic adaptations
+  - "material" — fundamentally different material choices
+- The DEFAULT pattern should be the most commonly tied version. If the extracted default looks like a less common variation, flag it.
+- Add well-known variations if the source missed obvious ones (e.g., most Adams patterns should include a Parachute Adams variation; most nymphs should note beadhead vs unweighted if applicable).
+- Each variation must have specific materialChanges showing what differs from the default.
 
 Be specific and practical. Only suggest changes you are confident about based on fly tying knowledge.`;
 
@@ -31,9 +45,10 @@ ${sourceContent.slice(0, 8000)}
 
 Using the review_extraction tool, provide:
 1. The enriched extraction with any corrections (fix material types, add missing materials, improve step instructions)
-2. Quality flags for any issues found
-3. Common substitutions for each material
-4. Completeness scores`;
+2. Validated and enriched variations — correct categories, add well-known variations if missing
+3. Quality flags for any issues found
+4. Common substitutions for each material
+5. Completeness scores`;
 }
 
 export const V2_ENRICHMENT_TOOL = {
@@ -77,6 +92,11 @@ export const V2_ENRICHMENT_TOOL = {
               properties: {
                 name: { type: "string" as const },
                 description: { type: "string" as const },
+                category: {
+                  type: "string" as const,
+                  enum: ["color", "weight", "wing_style", "hackle", "size", "regional", "material"],
+                  description: "The axis of variation",
+                },
                 materialChanges: {
                   type: "array" as const,
                   items: {
@@ -89,7 +109,7 @@ export const V2_ENRICHMENT_TOOL = {
                   },
                 },
               },
-              required: ["name", "description", "materialChanges"],
+              required: ["name", "description", "category", "materialChanges"],
             },
           },
           substitutions: {

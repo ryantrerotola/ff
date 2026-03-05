@@ -22,11 +22,13 @@ import type {
   V2ExtractedPattern,
   V2ConsensusMaterial,
   V2ConsensusPattern,
+  V2ConsensusVariation,
+  V2ExtractedVariation,
   V2ExtractedStep,
   EnrichmentResult,
   ScrapedSource,
 } from "./types";
-import type { ConsensusEntry, ExtractedSubstitution, ExtractedVariation } from "../types";
+import type { ConsensusEntry, ExtractedSubstitution } from "../types";
 
 const log = createLogger("v2:consensus");
 
@@ -72,8 +74,8 @@ export async function buildV2Consensus(
   // Materials: enhanced consensus with optional marking
   const materials = buildMaterialConsensus(extractions);
 
-  // Variations: merge and dedup
-  const variations = mergeVariations(extractions);
+  // Variations: merge explicit + detect from source disagreements
+  const variations = buildVariationConsensus(extractions, category.value);
 
   // Substitutions: merge source-mentioned + LLM-generated
   const substitutions = mergeAllSubstitutions(extractions, enrichments);
@@ -418,17 +420,422 @@ function descriptionScore(text: string): number {
 
 // ─── Variations ────────────────────────────────────────────────────────────
 
-function mergeVariations(extractions: V2ExtractedPattern[]): ExtractedVariation[] {
-  const seen = new Map<string, ExtractedVariation>();
-  for (const ext of extractions) {
-    for (const variation of ext.variations) {
+/**
+ * Build variation consensus from two signals:
+ * 1. Explicit variations mentioned by sources (merged + deduped)
+ * 2. Implicit variations detected from material disagreements between sources
+ *
+ * The default pattern represents what the majority of sources agree on.
+ * Minority material choices become detected variations.
+ */
+function buildVariationConsensus(
+  extractions: V2ExtractedPattern[],
+  patternCategory: string
+): V2ConsensusVariation[] {
+  const variations: V2ConsensusVariation[] = [];
+
+  // 1. Merge explicitly mentioned variations
+  const explicit = mergeExplicitVariations(extractions);
+  variations.push(...explicit);
+
+  // 2. Detect variations from source disagreements
+  const detected = detectVariationsFromDisagreements(extractions, patternCategory);
+
+  // Only add detected variations that don't duplicate explicit ones
+  for (const d of detected) {
+    const isDuplicate = variations.some(
+      (v) => combinedSimilarity(v.name.toLowerCase(), d.name.toLowerCase()) > 0.7
+    );
+    if (!isDuplicate) {
+      variations.push(d);
+    }
+  }
+
+  log.info("Variation consensus", {
+    explicit: String(explicit.length),
+    detected: String(detected.length),
+    final: String(variations.length),
+  });
+
+  return variations;
+}
+
+/**
+ * Merge explicitly mentioned variations across sources.
+ * Dedup by name similarity, keep the best description, track source count.
+ */
+function mergeExplicitVariations(extractions: V2ExtractedPattern[]): V2ConsensusVariation[] {
+  const groups = new Map<string, {
+    variations: V2ExtractedVariation[];
+    sourceIndices: Set<number>;
+  }>();
+
+  for (let i = 0; i < extractions.length; i++) {
+    for (const variation of extractions[i]!.variations) {
       const key = variation.name.toLowerCase().trim();
-      if (!seen.has(key) || variation.description.length > seen.get(key)!.description.length) {
-        seen.set(key, variation);
+
+      // Try to find an existing group by fuzzy match
+      let matched = false;
+      for (const [existingKey, group] of groups) {
+        if (combinedSimilarity(key, existingKey) > 0.7) {
+          group.variations.push(variation);
+          group.sourceIndices.add(i);
+          matched = true;
+          break;
+        }
+      }
+
+      if (!matched) {
+        groups.set(key, {
+          variations: [variation],
+          sourceIndices: new Set([i]),
+        });
       }
     }
   }
-  return [...seen.values()];
+
+  return [...groups.values()].map((group) => {
+    // Pick the variation with the best (longest) description
+    const best = group.variations.sort((a, b) => b.description.length - a.description.length)[0]!;
+
+    // Merge all material changes from all sources for this variation
+    const allChanges = new Map<string, { original: string; replacement: string }>();
+    for (const v of group.variations) {
+      for (const change of v.materialChanges) {
+        const changeKey = `${change.original.toLowerCase()}→${change.replacement.toLowerCase()}`;
+        if (!allChanges.has(changeKey)) {
+          allChanges.set(changeKey, change);
+        }
+      }
+    }
+
+    return {
+      name: best.name,
+      description: best.description,
+      category: best.category,
+      materialChanges: [...allChanges.values()],
+      sourceCount: group.sourceIndices.size,
+      detectedFromDisagreement: false,
+    };
+  });
+}
+
+/**
+ * Detect implicit variations by analyzing where sources disagree on materials.
+ *
+ * If the majority of sources use material A for a slot but a minority uses material B,
+ * the minority choice becomes a detected variation.
+ *
+ * Detects: color disagreements, weight (bead/no bead), wing style, hackle style.
+ */
+function detectVariationsFromDisagreements(
+  extractions: V2ExtractedPattern[],
+  patternCategory: string
+): V2ConsensusVariation[] {
+  if (extractions.length < 2) return [];
+
+  const detected: V2ConsensusVariation[] = [];
+
+  // Detect weight variations (bead vs no bead)
+  detectWeightVariations(extractions, detected);
+
+  // Detect color variations per material type
+  detectColorVariations(extractions, detected);
+
+  // Detect wing style variations (dry flies only)
+  if (patternCategory === "dry") {
+    detectWingStyleVariations(extractions, detected);
+  }
+
+  // Detect hackle variations (nymph/emerger)
+  if (patternCategory === "nymph" || patternCategory === "emerger") {
+    detectHackleVariations(extractions, detected);
+  }
+
+  return detected;
+}
+
+/**
+ * Detect weight variations: beadhead vs unweighted vs lead-wrapped.
+ * If some sources include a bead/weight and others don't, that's a variation.
+ */
+function detectWeightVariations(
+  extractions: V2ExtractedPattern[],
+  out: V2ConsensusVariation[]
+): void {
+  const sourceCount = extractions.length;
+  const withBead: number[] = [];
+  const withLeadWeight: number[] = [];
+  const unweighted: number[] = [];
+
+  for (let i = 0; i < extractions.length; i++) {
+    const mats = extractions[i]!.materials;
+    const hasBead = mats.some((m) => m.type === "bead");
+    const hasWeight = mats.some((m) => m.type === "weight");
+
+    if (hasBead) withBead.push(i);
+    else if (hasWeight) withLeadWeight.push(i);
+    else unweighted.push(i);
+  }
+
+  // Only create variations if there's actual disagreement (not all sources agree)
+  const groups = [withBead, withLeadWeight, unweighted].filter((g) => g.length > 0);
+  if (groups.length < 2) return;
+
+  // Majority is the default; minority groups become variations
+  const majorityIsBeaded = withBead.length >= sourceCount / 2;
+  const majorityIsWeighted = withLeadWeight.length >= sourceCount / 2;
+
+  if (majorityIsBeaded && unweighted.length > 0) {
+    out.push({
+      name: "Unweighted",
+      description: "Tied without a bead head for a lighter presentation or use with split shot",
+      category: "weight",
+      materialChanges: [{ original: "Bead", replacement: "None (unweighted)" }],
+      sourceCount: unweighted.length,
+      detectedFromDisagreement: true,
+    });
+  }
+
+  if (!majorityIsBeaded && !majorityIsWeighted && withBead.length > 0) {
+    // Find the bead name from a source that has one
+    const beadSource = extractions[withBead[0]!]!;
+    const beadMat = beadSource.materials.find((m) => m.type === "bead");
+    const beadName = beadMat
+      ? `${beadMat.color ? beadMat.color + " " : ""}${beadMat.name}`
+      : "Bead Head";
+
+    out.push({
+      name: "Beadhead",
+      description: "Tied with a bead head for added weight and flash to get the fly deeper",
+      category: "weight",
+      materialChanges: [{ original: "None (unweighted)", replacement: beadName }],
+      sourceCount: withBead.length,
+      detectedFromDisagreement: true,
+    });
+  }
+
+  if (withLeadWeight.length > 0 && withLeadWeight.length < sourceCount) {
+    const isMinority = withLeadWeight.length < sourceCount / 2;
+    if (isMinority) {
+      out.push({
+        name: "Lead-Wrapped",
+        description: "Tied with lead or lead-free wire wraps under the body for extra weight",
+        category: "weight",
+        materialChanges: [{ original: "None", replacement: "Lead wire wraps" }],
+        sourceCount: withLeadWeight.length,
+        detectedFromDisagreement: true,
+      });
+    }
+  }
+}
+
+/**
+ * Detect color variations by analyzing disagreements in material colors per type.
+ * If sources disagree on the color of a key material (body, tail, hackle, wing),
+ * minority color combos become a detected color variation.
+ */
+function detectColorVariations(
+  extractions: V2ExtractedPattern[],
+  out: V2ConsensusVariation[]
+): void {
+  const sourceCount = extractions.length;
+  if (sourceCount < 3) return; // Need at least 3 sources for meaningful color disagreement
+
+  // Track color schemes: concatenate colors of key material types to form a "color signature"
+  const colorTypes = ["body", "tail", "hackle", "wing"] as const;
+  const signatures = new Map<string, { indices: number[]; colors: Map<string, string> }>();
+
+  for (let i = 0; i < extractions.length; i++) {
+    const mats = extractions[i]!.materials;
+    const sig: string[] = [];
+    const colors = new Map<string, string>();
+
+    for (const type of colorTypes) {
+      const mat = mats.find((m) => m.type === type && m.color);
+      if (mat?.color) {
+        sig.push(`${type}:${mat.color.toLowerCase()}`);
+        colors.set(type, mat.color);
+      }
+    }
+
+    const sigKey = sig.sort().join("|");
+    if (sigKey === "") continue; // No color info
+
+    const existing = signatures.get(sigKey);
+    if (existing) {
+      existing.indices.push(i);
+    } else {
+      signatures.set(sigKey, { indices: [i], colors });
+    }
+  }
+
+  if (signatures.size < 2) return; // All sources agree on colors
+
+  // Find the majority color signature
+  let majorityKey = "";
+  let majorityCount = 0;
+  for (const [key, group] of signatures) {
+    if (group.indices.length > majorityCount) {
+      majorityCount = group.indices.length;
+      majorityKey = key;
+    }
+  }
+
+  const majorityColors = signatures.get(majorityKey)!.colors;
+
+  // Create variations for minority color schemes
+  for (const [key, group] of signatures) {
+    if (key === majorityKey) continue;
+    if (group.indices.length < 2) continue; // Need at least 2 sources to be a real variation
+
+    const materialChanges: { original: string; replacement: string }[] = [];
+    const colorDiffs: string[] = [];
+
+    for (const [type, color] of group.colors) {
+      const majorColor = majorityColors.get(type);
+      if (majorColor && majorColor.toLowerCase() !== color.toLowerCase()) {
+        materialChanges.push({
+          original: `${capitalizeFirst(type)} (${majorColor})`,
+          replacement: `${capitalizeFirst(type)} (${color})`,
+        });
+        colorDiffs.push(color);
+      }
+    }
+
+    if (materialChanges.length > 0) {
+      const colorName = colorDiffs.join(" & ");
+      out.push({
+        name: `${capitalizeFirst(colorName)} Version`,
+        description: `Tied with ${colorDiffs.join(" and ")} instead of the standard color scheme`,
+        category: "color",
+        materialChanges,
+        sourceCount: group.indices.length,
+        detectedFromDisagreement: true,
+      });
+    }
+  }
+}
+
+/**
+ * Detect wing style variations for dry flies.
+ * If some sources describe a parachute post and others describe upright wings,
+ * the minority style becomes a variation.
+ */
+function detectWingStyleVariations(
+  extractions: V2ExtractedPattern[],
+  out: V2ConsensusVariation[]
+): void {
+  const parachute: number[] = [];
+  const upright: number[] = [];
+
+  for (let i = 0; i < extractions.length; i++) {
+    const mats = extractions[i]!.materials;
+    const wings = mats.filter((m) => m.type === "wing");
+    const name = extractions[i]!.patternName.toLowerCase();
+
+    const isParachute = name.includes("parachute") ||
+      wings.some((w) =>
+        w.name.toLowerCase().includes("parachute") ||
+        w.name.toLowerCase().includes("post")
+      );
+
+    if (isParachute) parachute.push(i);
+    else if (wings.length > 0) upright.push(i);
+  }
+
+  if (parachute.length === 0 || upright.length === 0) return;
+
+  const majorityIsParachute = parachute.length > upright.length;
+
+  if (majorityIsParachute && upright.length > 0) {
+    out.push({
+      name: "Traditional Upright Wing",
+      description: "Tied with traditional upright wings instead of a parachute post",
+      category: "wing_style",
+      materialChanges: [{ original: "Parachute post", replacement: "Upright wing" }],
+      sourceCount: upright.length,
+      detectedFromDisagreement: true,
+    });
+  } else if (!majorityIsParachute && parachute.length > 0) {
+    out.push({
+      name: "Parachute",
+      description: "Tied with a parachute-style post and horizontal hackle for improved visibility and presentation",
+      category: "wing_style",
+      materialChanges: [{ original: "Upright wing", replacement: "Parachute post" }],
+      sourceCount: parachute.length,
+      detectedFromDisagreement: true,
+    });
+  }
+}
+
+/**
+ * Detect hackle variations for nymph/wet patterns.
+ * If some sources include a soft hackle collar and others don't,
+ * the minority becomes a variation.
+ */
+function detectHackleVariations(
+  extractions: V2ExtractedPattern[],
+  out: V2ConsensusVariation[]
+): void {
+  const withSoftHackle: number[] = [];
+  const withoutHackle: number[] = [];
+
+  for (let i = 0; i < extractions.length; i++) {
+    const mats = extractions[i]!.materials;
+    const hackles = mats.filter((m) => m.type === "hackle");
+
+    const hasSoftHackle = hackles.some(
+      (h) =>
+        h.name.toLowerCase().includes("soft hackle") ||
+        h.name.toLowerCase().includes("hen hackle") ||
+        h.name.toLowerCase().includes("partridge") ||
+        h.name.toLowerCase().includes("starling")
+    );
+
+    if (hasSoftHackle) withSoftHackle.push(i);
+    else withoutHackle.push(i);
+  }
+
+  if (withSoftHackle.length === 0 || withoutHackle.length === 0) return;
+  // Need meaningful disagreement
+  if (withSoftHackle.length < 2 && withoutHackle.length < 2) return;
+
+  const majorityHasSoftHackle = withSoftHackle.length > withoutHackle.length;
+
+  if (majorityHasSoftHackle) {
+    out.push({
+      name: "Without Soft Hackle",
+      description: "Tied without the soft hackle collar for a slimmer profile",
+      category: "hackle",
+      materialChanges: [{ original: "Soft hackle collar", replacement: "None" }],
+      sourceCount: withoutHackle.length,
+      detectedFromDisagreement: true,
+    });
+  } else {
+    // Find the hackle name from a source that has one
+    const hackleSource = extractions[withSoftHackle[0]!]!;
+    const hackleMat = hackleSource.materials.find(
+      (m) => m.type === "hackle" &&
+        (m.name.toLowerCase().includes("soft") ||
+         m.name.toLowerCase().includes("hen") ||
+         m.name.toLowerCase().includes("partridge"))
+    );
+    const hackleName = hackleMat?.name ?? "Soft Hackle Collar";
+
+    out.push({
+      name: "Soft Hackle",
+      description: "Tied with a soft hackle collar for added movement in the water",
+      category: "hackle",
+      materialChanges: [{ original: "None", replacement: hackleName }],
+      sourceCount: withSoftHackle.length,
+      detectedFromDisagreement: true,
+    });
+  }
+}
+
+function capitalizeFirst(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 // ─── Overall Confidence ────────────────────────────────────────────────────

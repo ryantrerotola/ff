@@ -23,6 +23,8 @@ import type {
   EnrichmentResult,
   QualityFlag,
 } from "./types";
+import { VARIATION_CATEGORIES } from "./types";
+import type { VariationCategory } from "./types";
 import type { ExtractedSubstitution } from "../types";
 
 const log = createLogger("v2:enrichment");
@@ -107,6 +109,13 @@ export async function enrichExtraction(
     if (!enriched.substitutions) enriched.substitutions = [];
     if (!enriched.tyingSteps) enriched.tyingSteps = [];
     if (!enriched.alternateNames) enriched.alternateNames = [];
+
+    // Validate variation categories
+    for (const v of enriched.variations) {
+      if (!v.category || !VARIATION_CATEGORIES.includes(v.category as VariationCategory)) {
+        v.category = "material"; // fallback for unknown categories
+      }
+    }
 
     log.success("Enrichment complete", {
       pattern: extraction.patternName,

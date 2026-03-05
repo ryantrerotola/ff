@@ -17,7 +17,8 @@ import {
 } from "./prompts/extraction";
 import { createLogger } from "../utils/logger";
 import { sanitizeMaterialType } from "../normalization/normalizer";
-import type { ScrapedSource, V2ExtractedPattern } from "./types";
+import type { ScrapedSource, V2ExtractedPattern, VariationCategory } from "./types";
+import { VARIATION_CATEGORIES } from "./types";
 
 const log = createLogger("v2:extraction");
 
@@ -121,6 +122,15 @@ export async function extractFromSource(
     for (const m of data.materials) {
       if (!m.brand) m.brand = null;
       if (!m.productCode) m.productCode = null;
+    }
+
+    // ── Normalize variations ─────────────────────────────────────────
+    if (!data.variations) data.variations = [];
+    for (const v of data.variations) {
+      if (!v.category || !VARIATION_CATEGORIES.includes(v.category as VariationCategory)) {
+        v.category = "material"; // fallback for unknown categories
+      }
+      if (!v.materialChanges) v.materialChanges = [];
     }
 
     // ── Normalize tying steps ────────────────────────────────────────
