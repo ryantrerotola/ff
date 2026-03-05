@@ -23,26 +23,23 @@ export const V2_CONFIG = {
   discovery: {
     youtubeQueries: [
       "site:youtube.com {pattern} fly tying tutorial",
-      "site:youtube.com {pattern} fly tying step by step",
       "site:youtube.com how to tie {pattern}",
     ],
     webQueries: [
       "{pattern} fly tying recipe materials",
-      "{pattern} fly pattern materials list hook thread",
-      "{pattern} fly tying step by step instructions",
-      "how to tie {pattern} fly materials recipe",
+      "{pattern} fly pattern step by step instructions hook thread",
     ],
     /** Max results per query from Brave */
     maxResultsPerQuery: 10,
     /** Max YouTube videos to keep per pattern (after scoring) */
-    maxYouTubePerPattern: 8,
+    maxYouTubePerPattern: 4,
     /** Max web results to keep per pattern (after scoring) */
-    maxWebPerPattern: 10,
+    maxWebPerPattern: 5,
   },
 
   scraping: {
     /** Max content length sent to extraction (chars) */
-    contentCap: 24000,
+    contentCap: 12000,
     /** User agent for web requests */
     userAgent: "FlyArchive/2.0 (fly pattern database; educational use)",
     /** Request delay between scrapes (ms) */
@@ -89,7 +86,7 @@ export const V2_CONFIG = {
     /** Minimum materials (including hook + thread) */
     minMaterials: 4,
     /** Minimum tying steps */
-    minSteps: 4,
+    minSteps: 3,
     /** Minimum validated photos */
     minPhotos: 1,
     /** Minimum description length */
@@ -102,9 +99,9 @@ export const V2_CONFIG = {
 
   images: {
     /** Max images to discover per pattern */
-    maxImagesPerPattern: 20,
+    maxImagesPerPattern: 10,
     /** Max images to validate with vision per pattern */
-    maxVisionValidations: 5,
+    maxVisionValidations: 3,
   },
 };
 
