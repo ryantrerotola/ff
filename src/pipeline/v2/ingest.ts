@@ -45,6 +45,10 @@ export async function ingestV2Pattern(
     links: String(productLinks.length),
   });
 
+  // Material lookup cache — avoids redundant DB queries within the transaction.
+  // Same material names appear across substitutions and variation overrides.
+  const materialCache = new Map<string, { id: string; name: string }>();
+
   return prisma.$transaction(async (tx) => {
     // Check if pattern already exists
     const existing = await tx.flyPattern.findUnique({
@@ -100,7 +104,7 @@ export async function ingestV2Pattern(
       flyPatternId = flyPattern.id;
     }
 
-    // Create materials
+    // Create materials and seed cache
     for (const mat of consensus.materials) {
       const safeType = sanitizeMaterialType(mat.type) as MaterialType;
       const material = await tx.material.upsert({
@@ -108,6 +112,9 @@ export async function ingestV2Pattern(
         update: {},
         create: { name: mat.name, type: safeType },
       });
+
+      // Cache for later lookups by substitutions/variations
+      materialCache.set(mat.name.toLowerCase(), { id: material.id, name: material.name });
 
       await tx.flyPatternMaterial.create({
         data: {
@@ -143,8 +150,8 @@ export async function ingestV2Pattern(
 
     // Create substitutions
     for (const sub of consensus.substitutions) {
-      const originalMat = await findOrCreateMaterial(tx, sub.originalMaterial);
-      const substituteMat = await findOrCreateMaterial(tx, sub.substituteMaterial);
+      const originalMat = await cachedFindOrCreateMaterial(tx, materialCache, sub.originalMaterial);
+      const substituteMat = await cachedFindOrCreateMaterial(tx, materialCache, sub.substituteMaterial);
 
       if (originalMat && substituteMat) {
         const existing = await tx.materialSubstitution.findFirst({
@@ -178,8 +185,8 @@ export async function ingestV2Pattern(
       });
 
       for (const change of variation.materialChanges) {
-        const originalMat = await findOrCreateMaterial(tx, change.original);
-        const replacementMat = await findOrCreateMaterial(tx, change.replacement);
+        const originalMat = await cachedFindOrCreateMaterial(tx, materialCache, change.original);
+        const replacementMat = await cachedFindOrCreateMaterial(tx, materialCache, change.replacement);
 
         if (originalMat && replacementMat) {
           await tx.variationOverride.create({
@@ -222,7 +229,7 @@ export async function ingestV2Pattern(
     });
 
     return flyPatternId;
-  }, { timeout: 30000 }); // 30s — ingestion creates 100+ DB records per pattern
+  }, { timeout: 60000 }); // 60s — ingestion creates 100+ DB records per pattern
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -282,30 +289,59 @@ async function addNewImages(
   }
 }
 
-async function findOrCreateMaterial(
+/**
+ * Find or create a material, using an in-memory cache to avoid
+ * redundant DB queries within the same transaction.
+ */
+async function cachedFindOrCreateMaterial(
   tx: TxClient,
+  cache: Map<string, { id: string; name: string }>,
   name: string
 ): Promise<{ id: string; name: string } | null> {
   if (!name || name.trim() === "") return null;
 
+  const key = name.toLowerCase().trim();
+
+  // Check cache first
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  // Also check cache for partial matches (e.g., "Pheasant Tail Fibers" contains "pheasant tail")
+  for (const [cachedKey, cachedVal] of cache) {
+    if (cachedKey.includes(key) || key.includes(cachedKey)) {
+      cache.set(key, cachedVal); // Cache the alias too
+      return cachedVal;
+    }
+  }
+
+  // DB lookup: exact match
   const exact = await tx.material.findFirst({
     where: { name: { equals: name, mode: "insensitive" } },
     select: { id: true, name: true },
   });
-  if (exact) return exact;
+  if (exact) {
+    cache.set(key, exact);
+    return exact;
+  }
 
+  // DB lookup: partial match
   const partial = await tx.material.findFirst({
     where: { name: { contains: name, mode: "insensitive" } },
     select: { id: true, name: true },
   });
-  if (partial) return partial;
+  if (partial) {
+    cache.set(key, partial);
+    return partial;
+  }
 
+  // Create new material
   const type = guessMaterialType(name);
   const created = await tx.material.create({
     data: { name, type: type as MaterialType },
     select: { id: true, name: true },
   });
 
+  cache.set(key, created);
   return created;
 }
 
