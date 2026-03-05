@@ -9,7 +9,7 @@ export const V2_CONFIG = {
     /** Fast model for initial extraction */
     extraction: "claude-haiku-4-5-20251001" as const,
     /** Powerful model for enrichment, step merging, and substitutions */
-    enrichment: "claude-sonnet-4-5-20241022" as const,
+    enrichment: "claude-sonnet-4-6" as const,
     /** Vision model for image validation */
     vision: "claude-haiku-4-5-20251001" as const,
     maxTokens: {
