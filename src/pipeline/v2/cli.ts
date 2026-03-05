@@ -269,7 +269,17 @@ async function runPatternPipeline(patternName: string): Promise<PatternPipelineR
         await updateExtractionStatus(ext.id, "ingested");
       }
     } catch (err) {
-      log.error("Ingestion failed", { pattern: patternName, error: String(err) });
+      const errObj = err instanceof Error ? err : new Error(String(err));
+      log.error("Ingestion failed", {
+        pattern: patternName,
+        error: errObj.message,
+        stack: errObj.stack?.split("\n").slice(0, 5).join(" | ") ?? "",
+        category: consensus.category.value,
+        difficulty: consensus.difficulty.value,
+        waterType: consensus.waterType.value,
+        materials: String(consensus.materials.length),
+        steps: String(consensus.tyingSteps.length),
+      });
     }
   }
 

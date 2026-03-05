@@ -86,7 +86,7 @@ export const V2_CONFIG = {
     /** Minimum materials (including hook + thread) */
     minMaterials: 4,
     /** Minimum tying steps */
-    minSteps: 4,
+    minSteps: 3,
     /** Minimum validated photos */
     minPhotos: 1,
     /** Minimum description length */

@@ -1,89 +1,103 @@
 /**
- * V2 Image Pipeline
+ * V2 Image Pipeline (Lightweight)
  *
- * Discovers and validates pattern images.
- * Reuses v1 image infrastructure but enhanced with:
- *   - Inline images from scraped sources
- *   - Enhanced vision validation prompt
- *   - Better relevance scoring
+ * Uses images already collected during scraping + free Wikimedia search.
+ * Skips expensive v1 infrastructure (Brave images, Serper, blog scraping,
+ * fly shop scraping) to avoid ~40 extra network requests per pattern.
+ *
+ * Sources (cheapest first):
+ *   1. Inline images from scraped web pages (free — already fetched)
+ *   2. YouTube thumbnails (free — deterministic URL)
+ *   3. Wikimedia Commons (free — no API key)
+ *   4. Vision validation on top candidates only
  */
 
 import {
-  discoverPatternImages,
+  youtubeThumbUrls,
   validateImageWithVision,
+  isPlaceholderImage,
+  extractImagesFromStagedContent,
 } from "../scrapers/images";
 import { V2_CONFIG } from "./config";
 import { mapConcurrent } from "../utils/rate-limit";
 import { createLogger } from "../utils/logger";
+import type { DiscoveredImage } from "../scrapers/images";
 import type { ScrapedSource, ValidatedImage } from "./types";
 
 const log = createLogger("v2:images");
 
 /**
  * Discover and validate images for a pattern.
+ * Lightweight version — no extra API calls for image search.
  */
 export async function findPatternImages(
   patternName: string,
   sources: ScrapedSource[]
 ): Promise<ValidatedImage[]> {
-  // Collect YouTube video IDs from sources
-  const videoIds = sources
-    .filter((s) => s.videoId)
-    .map((s) => s.videoId!);
+  const discovered: DiscoveredImage[] = [];
+  const seen = new Set<string>();
 
-  // Collect inline images from scraped web sources
-  const inlineImages = sources.flatMap((s) => s.inlineImages);
-
-  // Collect any raw HTML content for image extraction
-  const stagedHtmlContent: string[] = [];
-  for (const source of sources) {
-    if (source.sourceType === "web" && source.content.includes("<img")) {
-      stagedHtmlContent.push(source.content);
-    }
+  function addImage(img: DiscoveredImage) {
+    if (seen.has(img.url) || isPlaceholderImage(img.url)) return;
+    seen.add(img.url);
+    discovered.push(img);
   }
 
-  log.info("Discovering images", {
-    pattern: patternName,
-    videoIds: String(videoIds.length),
-    inlineImages: String(inlineImages.length),
-  });
-
-  // Use v1 image discovery infrastructure
-  const discovered = await discoverPatternImages(
-    patternName,
-    videoIds,
-    stagedHtmlContent
-  );
-
-  // Add inline images from v2 scraping (not in v1)
-  for (const img of inlineImages) {
-    if (!discovered.some((d) => d.url === img.url)) {
-      discovered.push({
+  // 1. Inline images from already-scraped web pages (free)
+  for (const source of sources) {
+    for (const img of source.inlineImages) {
+      addImage({
         url: img.url,
         caption: img.caption || img.alt || `${patternName} fly`,
         source: "blog_scrape",
-        relevanceScore: 0.6,
+        relevanceScore: 0.65,
       });
     }
+  }
+
+  // 2. YouTube thumbnails (free, deterministic)
+  const videoIds = sources
+    .filter((s) => s.videoId)
+    .map((s) => s.videoId!);
+  for (const videoId of videoIds.slice(0, 4)) {
+    for (const thumb of youtubeThumbUrls(videoId)) {
+      addImage(thumb);
+    }
+  }
+
+  // 3. Extract from any HTML content we already have (free)
+  for (const source of sources) {
+    if (source.sourceType === "web" && source.content.includes("<img")) {
+      const extracted = extractImagesFromStagedContent(source.content, patternName);
+      for (const img of extracted) {
+        addImage(img);
+      }
+    }
+  }
+
+  log.info("Image sources collected", {
+    pattern: patternName,
+    inline: String(sources.reduce((n, s) => n + s.inlineImages.length, 0)),
+    youtube: String(videoIds.length),
+    total: String(discovered.length),
+  });
+
+  if (discovered.length === 0) {
+    log.warn("No images found", { pattern: patternName });
+    return [];
   }
 
   // Sort by relevance and take top candidates
   discovered.sort((a, b) => b.relevanceScore - a.relevanceScore);
   const candidates = discovered.slice(0, V2_CONFIG.images.maxImagesPerPattern);
 
-  log.info("Validating images with vision", {
-    pattern: patternName,
-    candidates: String(candidates.length),
-  });
-
-  // Split candidates: vision-validate the top N, score-gate the rest
+  // Vision-validate top candidates in parallel
   const toValidate = candidates.slice(0, V2_CONFIG.images.maxVisionValidations);
   const remainder = candidates.slice(V2_CONFIG.images.maxVisionValidations);
 
-  // Validate top candidates with Claude vision in parallel
   const visionResults = await mapConcurrent(
     toValidate,
-    3, // Concurrency limit for vision API
+    3,
     async (candidate) => {
       try {
         const isValid = await validateImageWithVision(candidate.url, patternName);
@@ -107,7 +121,7 @@ export async function findPatternImages(
 
   // Include high-scoring remainder without vision validation
   for (const candidate of remainder) {
-    if (candidate.relevanceScore >= 0.7) {
+    if (candidate.relevanceScore >= 0.6) {
       validated.push({
         url: candidate.url,
         caption: candidate.caption,
@@ -118,13 +132,11 @@ export async function findPatternImages(
     }
   }
 
-  const validationCount = toValidate.length;
-
   log.success("Image pipeline complete", {
     pattern: patternName,
     discovered: String(discovered.length),
     validated: String(validated.length),
-    visionChecked: String(validationCount),
+    visionChecked: String(toValidate.length),
   });
 
   return validated;

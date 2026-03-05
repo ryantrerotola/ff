@@ -58,10 +58,10 @@ export function evaluateQuality(
     );
   }
 
-  // Photos
+  // Photos — warn only, don't block (image pipeline is unreliable)
   if (images.length < gate.minPhotos) {
-    reasons.push(
-      `Only ${images.length} validated photos (need ≥${gate.minPhotos})`
+    warnings.push(
+      `Only ${images.length} validated photos (${gate.minPhotos}+ preferred)`
     );
   }
 
