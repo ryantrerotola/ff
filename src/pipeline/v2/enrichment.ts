@@ -145,20 +145,49 @@ export async function enrichExtraction(
   }
 }
 
+/** Max extractions to send through Sonnet enrichment (cost control) */
+const MAX_ENRICHMENTS = 5;
+
+/** Min materials for an extraction to be worth enriching */
+const MIN_MATERIALS_FOR_ENRICHMENT = 3;
+
 /**
- * Enrich all extractions.
+ * Enrich the best extractions. Skips low-quality ones and caps total
+ * Sonnet calls to control cost. Remaining extractions get fallback scores.
  */
 export async function enrichAll(
   extractions: { extraction: V2ExtractedPattern; source: ScrapedSource }[]
 ): Promise<EnrichmentResult[]> {
-  const results = await mapConcurrent(
-    extractions,
-    3, // Concurrency limit for Anthropic API
+  // Score and rank extractions — only enrich the best ones with Sonnet
+  const scored = extractions.map((e) => ({
+    ...e,
+    quality: quickQualityScore(e.extraction, e.source),
+  }));
+  scored.sort((a, b) => b.quality - a.quality);
+
+  const toEnrich = scored.filter((e) => e.extraction.materials.length >= MIN_MATERIALS_FOR_ENRICHMENT).slice(0, MAX_ENRICHMENTS);
+  const toSkip = scored.filter((e) => !toEnrich.includes(e));
+
+  log.info("Enrichment plan", {
+    total: String(scored.length),
+    enriching: String(toEnrich.length),
+    skipping: String(toSkip.length),
+  });
+
+  const enriched = await mapConcurrent(
+    toEnrich,
+    3,
     async ({ extraction, source }) => enrichExtraction(extraction, source)
   );
 
+  // Use fallback for skipped extractions (no Sonnet cost)
+  const skipped = toSkip.map(({ extraction }) => fallbackResult(extraction));
+
+  const results = [...enriched, ...skipped];
+
   log.info("Enrichment batch complete", {
     count: String(results.length),
+    sonnetCalls: String(toEnrich.length),
     avgOverall: String(
       Math.round(
         (results.reduce((sum, r) => sum + r.scores.overall, 0) / results.length) * 100
@@ -167,6 +196,18 @@ export async function enrichAll(
   });
 
   return results;
+}
+
+/** Quick quality score to rank extractions without an API call */
+function quickQualityScore(ext: V2ExtractedPattern, source: ScrapedSource): number {
+  let score = 0;
+  score += Math.min(ext.materials.length, 8) * 3; // up to 24
+  score += Math.min(ext.tyingSteps.length, 8) * 2; // up to 16
+  score += ext.description.length > 100 ? 5 : 0;
+  score += source.hasTranscript ? 10 : 0;
+  score += source.lowConfidence ? -5 : 0;
+  score += ext.materials.some((m) => m.brand) ? 3 : 0;
+  return score;
 }
 
 function fallbackResult(extraction: V2ExtractedPattern): EnrichmentResult {
