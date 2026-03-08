@@ -80,8 +80,33 @@ export async function buildV2Consensus(
   // Substitutions: merge source-mentioned + LLM-generated
   const substitutions = mergeAllSubstitutions(extractions, enrichments);
 
-  // Tying steps: Sonnet-merged from all sources
-  const tyingSteps = await mergeStepsWithSonnet(patternName, enrichments, sources);
+  // Tying steps: Sonnet-merged from agreeing sources only
+  // Filter out outlier sources whose materials diverge significantly from consensus
+  const consensusMaterialNames = new Set(
+    materials.map((m) => m.name.toLowerCase())
+  );
+  const agreementBySource = enrichments.map((e) => {
+    const srcMats = e.enriched.materials.map((m) => m.name.toLowerCase());
+    if (srcMats.length === 0) return 0;
+    const overlap = srcMats.filter((name) =>
+      [...consensusMaterialNames].some(
+        (cm) => combinedSimilarity(name, cm) > 0.7
+      )
+    ).length;
+    return overlap / srcMats.length;
+  });
+
+  const filteredEnrichments = enrichments.filter((_, i) => agreementBySource[i]! >= 0.4);
+  const filteredSources = sources.filter((_, i) => agreementBySource[i]! >= 0.4);
+
+  if (filteredEnrichments.length === 0) {
+    // Fallback: use all if filtering removed everything
+    log.warn("All sources filtered for step merge, using all", { pattern: patternName });
+  }
+
+  const stepEnrichments = filteredEnrichments.length > 0 ? filteredEnrichments : enrichments;
+  const stepSources = filteredEnrichments.length > 0 ? filteredSources : sources;
+  const tyingSteps = await mergeStepsWithSonnet(patternName, stepEnrichments, stepSources);
 
   // Overall confidence
   const overallConfidence = calculateOverallConfidence(
@@ -176,8 +201,13 @@ function buildMaterialConsensus(extractions: V2ExtractedPattern[]): V2ConsensusM
       const freq = group.uniqueSources;
       const agreement = freq / sourceCount;
 
-      // Skip if only in 1 source and beyond the typical slot count
-      if (i >= slotsPerSource && freq < V2_CONFIG.consensus.optionalMinSources) continue;
+      // For materials beyond the typical slot count, require both a minimum
+      // source count AND a minimum agreement ratio to prevent outlier pollution.
+      // e.g., 2/8 sources = 25% agreement — too low to include as even optional.
+      if (i >= slotsPerSource) {
+        if (freq < V2_CONFIG.consensus.optionalMinSources) continue;
+        if (agreement < V2_CONFIG.consensus.optionalMinAgreement) continue;
+      }
 
       const isOptional = agreement < V2_CONFIG.consensus.materialThreshold && i >= slotsPerSource;
 
