@@ -814,7 +814,7 @@ export async function validateImageWithVision(
             },
             {
               type: "text",
-              text: `Does this image show a fly used for fly fishing? It should be an artificial fly (tied on a hook with feathers, fur, thread, etc.) — not a nature photo, logo, person, landscape, or product listing. It could be a "${patternName}" or a similar fly pattern. Answer ONLY "yes" or "no".`,
+              text: `Does this image show a COMPLETED artificial fly used for fly fishing (a finished fly tied on a hook, ready to fish)? Answer "no" if it shows: raw tying materials (feathers, fur, thread spools, beads, hooks by themselves), a person, logo, landscape, product packaging, tools, a fly in a tying vice mid-construction, or anything other than a finished fly. It could be a "${patternName}" or similar pattern. Answer ONLY "yes" or "no".`,
             },
           ],
         },

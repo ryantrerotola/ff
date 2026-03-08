@@ -27,6 +27,25 @@ import type { ScrapedSource, ValidatedImage } from "./types";
 const log = createLogger("v2:images");
 
 /**
+ * Heuristic to detect images of raw materials rather than completed flies.
+ * Checks caption and URL for material-related keywords.
+ */
+function isMaterialImage(img: DiscoveredImage): boolean {
+  const text = `${img.caption} ${img.url}`.toLowerCase();
+  const materialKeywords = [
+    "spool", "spools", "thread spool", "package", "packaging",
+    "raw material", "tying material", "material kit",
+    "feather", "feathers", "hackle cape", "hackle patch",
+    "dubbing bag", "dubbing packet", "chenille pack",
+    "hook pack", "hook box", "bead pack", "beads pack",
+    "product photo", "product image",
+    "vice", "vise", "bobbin", "scissors", "tools",
+    "shopping", "cart", "add to cart", "buy now",
+  ];
+  return materialKeywords.some((kw) => text.includes(kw));
+}
+
+/**
  * Discover and validate images for a pattern.
  * Lightweight version — no extra API calls for image search.
  */
@@ -39,6 +58,7 @@ export async function findPatternImages(
 
   function addImage(img: DiscoveredImage) {
     if (seen.has(img.url) || isPlaceholderImage(img.url)) return;
+    if (isMaterialImage(img)) return; // Skip raw material photos
     seen.add(img.url);
     discovered.push(img);
   }
