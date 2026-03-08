@@ -255,6 +255,35 @@ function buildMaterialConsensus(extractions: V2ExtractedPattern[]): V2ConsensusM
   return consensusMaterials;
 }
 
+/**
+ * Common color and modifier words that should be ignored when clustering
+ * materials by base name. Without this, "White Bucktail" and "Olive Bucktail"
+ * become separate entries instead of one "Bucktail" slot with color options.
+ */
+const COLOR_MODIFIERS = new Set([
+  // Colors
+  "white", "black", "brown", "tan", "olive", "chartreuse", "yellow", "red",
+  "orange", "pink", "purple", "blue", "green", "grey", "gray", "cream",
+  "natural", "dark", "light", "medium", "pale", "bright", "fluorescent",
+  "fl", "hot",
+  // Metal/material modifiers
+  "lead", "brass", "tungsten", "nickel", "gold", "silver", "copper",
+  "chrome", "painted", "plated",
+  // Size modifiers
+  "large", "small", "mini", "extra", "xl", "xs",
+]);
+
+/**
+ * Strip color and modifier words from a material name to get the base name
+ * for clustering. "White Bucktail" → "bucktail", "Lead Dumbbell Eyes" → "dumbbell eyes"
+ */
+function baseMaterialName(name: string): string {
+  const tokens = name.toLowerCase().split(/\s+/);
+  const filtered = tokens.filter((t) => !COLOR_MODIFIERS.has(t));
+  // If stripping removes everything, keep original
+  return filtered.length > 0 ? filtered.join(" ") : name.toLowerCase();
+}
+
 function clusterMaterials(mats: MaterialWithSource[]): { name: string; members: MaterialWithSource[] }[] {
   const groups: { name: string; members: MaterialWithSource[] }[] = [];
   const uniqueNames = [...new Set(mats.map((m) => m.name))];
@@ -263,8 +292,16 @@ function clusterMaterials(mats: MaterialWithSource[]): { name: string; members: 
     const members = mats.filter((m) => m.name === name);
     let merged = false;
 
+    const baseName = baseMaterialName(name);
+
     for (const group of groups) {
-      if (combinedSimilarity(name, group.name) > V2_CONFIG.consensus.fuzzyMatchThreshold) {
+      const groupBase = baseMaterialName(group.name);
+
+      // Compare base names (color-stripped) for clustering
+      if (
+        combinedSimilarity(baseName, groupBase) > V2_CONFIG.consensus.fuzzyMatchThreshold ||
+        combinedSimilarity(name, group.name) > V2_CONFIG.consensus.fuzzyMatchThreshold
+      ) {
         group.members.push(...members);
         merged = true;
         break;
@@ -276,7 +313,66 @@ function clusterMaterials(mats: MaterialWithSource[]): { name: string; members: 
     }
   }
 
-  return groups;
+  // Post-processing: split clusters that contain multiple entries from the
+  // same source into separate positional slots. E.g., a Clouser Minnow source
+  // lists both "White Bucktail" (pos 4) and "Olive Bucktail" (pos 6) as wing
+  // materials — they cluster together by base name, but are actually separate
+  // slots. Split by median position within each source to recover the slots.
+  return groups.flatMap((group) => splitByPosition(group));
+}
+
+/**
+ * If a cluster has multiple entries from the same source at different
+ * positions, split it into positional sub-clusters (slot 1, slot 2, etc.).
+ */
+function splitByPosition(
+  group: { name: string; members: MaterialWithSource[] }
+): { name: string; members: MaterialWithSource[] }[] {
+  // Count how many members each source contributed
+  const perSource = new Map<number, MaterialWithSource[]>();
+  for (const m of group.members) {
+    const existing = perSource.get(m.sourceIndex) ?? [];
+    existing.push(m);
+    perSource.set(m.sourceIndex, existing);
+  }
+
+  // Find the most common count per source — that's how many real slots there are
+  const countFreq = new Map<number, number>();
+  for (const members of perSource.values()) {
+    const c = members.length;
+    countFreq.set(c, (countFreq.get(c) ?? 0) + 1);
+  }
+
+  let typicalCount = 1;
+  let bestFreq = 0;
+  for (const [count, freq] of countFreq) {
+    if (freq > bestFreq || (freq === bestFreq && count > typicalCount)) {
+      bestFreq = freq;
+      typicalCount = count;
+    }
+  }
+
+  // If most sources only contribute 1 entry, no split needed
+  if (typicalCount <= 1) return [group];
+
+  // Split into positional sub-clusters
+  // For each source with multiple entries, sort by position and assign to slots
+  const slots: MaterialWithSource[][] = Array.from({ length: typicalCount }, () => []);
+
+  for (const [, members] of perSource) {
+    const sorted = [...members].sort((a, b) => a.position - b.position);
+    for (let i = 0; i < sorted.length; i++) {
+      const slotIndex = Math.min(i, typicalCount - 1);
+      slots[slotIndex]!.push(sorted[i]!);
+    }
+  }
+
+  return slots
+    .filter((s) => s.length > 0)
+    .map((members) => ({
+      name: pickMostCommon(members.map((m) => m.name)),
+      members,
+    }));
 }
 
 // ─── Tying Steps: Sonnet Merge ─────────────────────────────────────────────
