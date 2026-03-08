@@ -352,24 +352,52 @@ function splitByPosition(
     }
   }
 
-  // If most sources only contribute 1 entry, no split needed
+  // If most sources only contribute 1 entry, no split needed.
+  // Sources that list a single entry with a combined color (e.g.,
+  // "Olive and Brown Bucktail") are fine — they stay in one slot and
+  // their full name is preserved as-is.
   if (typicalCount <= 1) return [group];
 
-  // Split into positional sub-clusters
-  // For each source with multiple entries, sort by position and assign to slots
+  // Split into positional sub-clusters.
+  // For each source with multiple entries, sort by position and assign to slots.
+  // Sources with fewer entries than typicalCount go into the first slot
+  // (they may describe a mixed-color wing as a single entry).
   const slots: MaterialWithSource[][] = Array.from({ length: typicalCount }, () => []);
 
   for (const [, members] of perSource) {
     const sorted = [...members].sort((a, b) => a.position - b.position);
-    for (let i = 0; i < sorted.length; i++) {
-      const slotIndex = Math.min(i, typicalCount - 1);
-      slots[slotIndex]!.push(sorted[i]!);
+    if (sorted.length === 1 && typicalCount > 1) {
+      // This source combined multiple slots into one entry (e.g., "Olive and Brown Bucktail").
+      // Put it in the slot whose average position is closest.
+      const pos = sorted[0]!.position;
+      const slotPositions = slots.map((slot) =>
+        slot.length > 0
+          ? slot.reduce((sum, m) => sum + m.position, 0) / slot.length
+          : Infinity
+      );
+      // Find the closest slot, or the first empty one
+      let bestSlot = 0;
+      let bestDist = Infinity;
+      for (let s = 0; s < typicalCount; s++) {
+        const dist = slotPositions[s] === Infinity ? 0 : Math.abs(slotPositions[s]! - pos);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestSlot = s;
+        }
+      }
+      slots[bestSlot]!.push(sorted[0]!);
+    } else {
+      for (let i = 0; i < sorted.length; i++) {
+        const slotIndex = Math.min(i, typicalCount - 1);
+        slots[slotIndex]!.push(sorted[i]!);
+      }
     }
   }
 
   return slots
     .filter((s) => s.length > 0)
     .map((members) => ({
+      // Use the full original name (with colors) — don't strip to base name
       name: pickMostCommon(members.map((m) => m.name)),
       members,
     }));
