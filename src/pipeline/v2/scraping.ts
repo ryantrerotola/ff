@@ -24,8 +24,17 @@ const rateLimit = createRateLimiter(V2_CONFIG.scraping.requestDelayMs);
 export async function scrapeAllSources(
   sources: DiscoveredSource[]
 ): Promise<ScrapedSource[]> {
+  // Deduplicate sources by normalized URL (same video ID = same video)
+  const deduped = deduplicateSources(sources);
+  if (deduped.length < sources.length) {
+    log.info("Deduplicated sources", {
+      before: String(sources.length),
+      after: String(deduped.length),
+    });
+  }
+
   const allResults = await mapConcurrent(
-    sources,
+    deduped,
     V2_CONFIG.scraping.concurrency,
     async (source) => {
       try {
@@ -314,6 +323,32 @@ function extractChannelFromTitle(title: string): string {
   const cleaned = title.replace(/\s*[-–]\s*YouTube$/i, "");
   const parts = cleaned.split(/\s*[-–]\s*/);
   return parts.length > 1 ? parts[parts.length - 1]!.trim() : "";
+}
+
+/**
+ * Deduplicate sources by normalized URL key.
+ * YouTube videos are keyed by video ID (handles youtu.be vs youtube.com/watch).
+ * Web sources are keyed by full URL.
+ */
+function deduplicateSources(sources: DiscoveredSource[]): DiscoveredSource[] {
+  const seen = new Set<string>();
+  const result: DiscoveredSource[] = [];
+
+  for (const source of sources) {
+    let key = source.url;
+
+    if (source.sourceType === "youtube") {
+      const videoId = extractVideoId(source.url);
+      if (videoId) key = `yt:${videoId}`;
+    }
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(source);
+    }
+  }
+
+  return result;
 }
 
 function extractInlineImages($: cheerio.CheerioAPI, pageUrl: string): InlineImage[] {
