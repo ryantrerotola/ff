@@ -41,7 +41,7 @@ export const V2_CONFIG = {
     /** Max content length sent to extraction (chars) */
     contentCap: 12000,
     /** User agent for web requests */
-    userAgent: "FlyArchive/2.0 (fly pattern database; educational use)",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     /** Request delay between scrapes (ms) */
     requestDelayMs: 300,
     /** Request timeout (ms) */

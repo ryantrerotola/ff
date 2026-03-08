@@ -78,9 +78,9 @@ export async function ingestV2Pattern(
         where: { id: existing.id },
         data: {
           name: consensus.patternName,
-          category: consensus.category.value as FlyCategory,
-          difficulty: consensus.difficulty.value as Difficulty,
-          waterType: consensus.waterType.value as WaterType,
+          category: sanitizeCategory(consensus.category.value),
+          difficulty: sanitizeDifficulty(consensus.difficulty.value),
+          waterType: sanitizeWaterType(consensus.waterType.value),
           description: consensus.description,
           origin: consensus.origin,
         },
@@ -93,9 +93,9 @@ export async function ingestV2Pattern(
         data: {
           name: consensus.patternName,
           slug: consensus.slug,
-          category: consensus.category.value as FlyCategory,
-          difficulty: consensus.difficulty.value as Difficulty,
-          waterType: consensus.waterType.value as WaterType,
+          category: sanitizeCategory(consensus.category.value),
+          difficulty: sanitizeDifficulty(consensus.difficulty.value),
+          waterType: sanitizeWaterType(consensus.waterType.value),
           description: consensus.description,
           origin: consensus.origin,
         },
@@ -166,7 +166,7 @@ export async function ingestV2Pattern(
             data: {
               materialId: originalMat.id,
               substituteMaterialId: substituteMat.id,
-              substitutionType: (sub.substitutionType || "equivalent") as SubstitutionType,
+              substitutionType: sanitizeSubstitutionType(sub.substitutionType),
               notes: sub.notes || "Discovered by v2 pipeline",
             },
           });
@@ -200,15 +200,18 @@ export async function ingestV2Pattern(
       }
     }
 
-    // Create tying steps
-    if (consensus.tyingSteps.length > 0) {
+    // Create tying steps (filter out steps with empty instructions)
+    const validSteps = consensus.tyingSteps.filter(
+      (step) => step.instruction && step.instruction.trim().length > 0
+    );
+    if (validSteps.length > 0) {
       await tx.tyingStep.createMany({
-        data: consensus.tyingSteps.map((step) => ({
+        data: validSteps.map((step, i) => ({
           flyPatternId,
-          position: step.position,
-          title: step.title,
+          position: step.position ?? i + 1,
+          title: step.title || `Step ${step.position ?? i + 1}`,
           instruction: step.instruction,
-          tip: step.tip,
+          tip: step.tip || null,
         })),
       });
     }
@@ -306,11 +309,17 @@ async function cachedFindOrCreateMaterial(
   const cached = cache.get(key);
   if (cached) return cached;
 
-  // Also check cache for partial matches (e.g., "Pheasant Tail Fibers" contains "pheasant tail")
-  for (const [cachedKey, cachedVal] of cache) {
-    if (cachedKey.includes(key) || key.includes(cachedKey)) {
-      cache.set(key, cachedVal); // Cache the alias too
-      return cachedVal;
+  // Check cache for partial matches, but only when both strings are long enough
+  // to avoid false matches (e.g., "bead" matching "beadhead", "wire" matching "wire ribbing")
+  const MIN_PARTIAL_MATCH_LEN = 8;
+  if (key.length >= MIN_PARTIAL_MATCH_LEN) {
+    for (const [cachedKey, cachedVal] of cache) {
+      if (cachedKey.length >= MIN_PARTIAL_MATCH_LEN) {
+        if (cachedKey.includes(key) || key.includes(cachedKey)) {
+          cache.set(key, cachedVal);
+          return cachedVal;
+        }
+      }
     }
   }
 
@@ -324,14 +333,16 @@ async function cachedFindOrCreateMaterial(
     return exact;
   }
 
-  // DB lookup: partial match
-  const partial = await tx.material.findFirst({
-    where: { name: { contains: name, mode: "insensitive" } },
-    select: { id: true, name: true },
-  });
-  if (partial) {
-    cache.set(key, partial);
-    return partial;
+  // DB lookup: partial match (only for longer names to avoid false matches)
+  if (name.trim().length >= MIN_PARTIAL_MATCH_LEN) {
+    const partial = await tx.material.findFirst({
+      where: { name: { contains: name, mode: "insensitive" } },
+      select: { id: true, name: true },
+    });
+    if (partial) {
+      cache.set(key, partial);
+      return partial;
+    }
   }
 
   // Create new material
@@ -343,6 +354,63 @@ async function cachedFindOrCreateMaterial(
 
   cache.set(key, created);
   return created;
+}
+
+const VALID_SUBSTITUTION_TYPES = new Set(["equivalent", "budget", "aesthetic", "availability"]);
+
+function sanitizeSubstitutionType(raw: string | undefined): SubstitutionType {
+  if (raw && VALID_SUBSTITUTION_TYPES.has(raw)) return raw as SubstitutionType;
+  return "equivalent";
+}
+
+// ─── Enum Sanitizers ──────────────────────────────────────────────────────
+
+const VALID_CATEGORIES = new Set(["dry", "nymph", "streamer", "emerger", "saltwater", "other"]);
+const CATEGORY_ALIASES: Record<string, string> = {
+  "dry fly": "dry",
+  "wet fly": "nymph",
+  wet: "nymph",
+  "wet/nymph": "nymph",
+  terrestrial: "dry",
+  bass: "streamer",
+  baitfish: "streamer",
+  minnow: "streamer",
+  shrimp: "saltwater",
+  crab: "saltwater",
+  buzzer: "emerger",
+  midge: "emerger",
+};
+
+function sanitizeCategory(raw: string): FlyCategory {
+  const lower = raw.toLowerCase().trim();
+  if (VALID_CATEGORIES.has(lower)) return lower as FlyCategory;
+  if (lower in CATEGORY_ALIASES) return CATEGORY_ALIASES[lower]! as FlyCategory;
+  log.warn("Unknown category, defaulting to 'other'", { raw });
+  return "other" as FlyCategory;
+}
+
+const VALID_DIFFICULTIES = new Set(["beginner", "intermediate", "advanced"]);
+
+function sanitizeDifficulty(raw: string): Difficulty {
+  const lower = raw.toLowerCase().trim();
+  if (VALID_DIFFICULTIES.has(lower)) return lower as Difficulty;
+  if (lower === "easy") return "beginner" as Difficulty;
+  if (lower === "moderate" || lower === "medium") return "intermediate" as Difficulty;
+  if (lower === "hard" || lower === "expert") return "advanced" as Difficulty;
+  log.warn("Unknown difficulty, defaulting to 'intermediate'", { raw });
+  return "intermediate" as Difficulty;
+}
+
+const VALID_WATER_TYPES = new Set(["freshwater", "saltwater", "both"]);
+
+function sanitizeWaterType(raw: string): WaterType {
+  const lower = raw.toLowerCase().trim();
+  if (VALID_WATER_TYPES.has(lower)) return lower as WaterType;
+  if (lower === "fresh") return "freshwater" as WaterType;
+  if (lower === "salt") return "saltwater" as WaterType;
+  if (lower === "all" || lower === "any") return "both" as WaterType;
+  log.warn("Unknown waterType, defaulting to 'freshwater'", { raw });
+  return "freshwater" as WaterType;
 }
 
 function guessMaterialType(name: string): string {

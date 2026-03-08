@@ -14,7 +14,7 @@ export const PIPELINE_CONFIG = {
     concurrency: parseInt(process.env.PIPELINE_CONCURRENCY ?? "5", 10),
     requestDelayMs: 1000,
     userAgent:
-      "FlyArchive/1.0 (fly pattern database; educational use)",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     timeoutMs: 15000,
   },
   normalization: {

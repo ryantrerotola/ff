@@ -20,7 +20,20 @@ export function PhotoGallery({ flyPatternId, images }: PhotoGalleryProps) {
   // Suppress unused variable warning — flyPatternId available for future use
   void flyPatternId;
 
-  if (images.length === 0) {
+  // Filter out images that are likely raw materials, not completed flies
+  const filteredImages = images.filter((img) => {
+    const text = `${img.caption ?? ""} ${img.url}`.toLowerCase();
+    const materialKeywords = [
+      "spool", "package", "packaging", "raw material", "tying material",
+      "material kit", "feathers", "hackle cape", "hackle patch",
+      "dubbing bag", "hook pack", "hook box", "bead pack",
+      "vice", "vise", "bobbin", "scissors", "tools",
+      "shopping", "cart", "add to cart", "buy now",
+    ];
+    return !materialKeywords.some((kw) => text.includes(kw));
+  });
+
+  if (filteredImages.length === 0) {
     return null;
   }
 
@@ -28,11 +41,11 @@ export function PhotoGallery({ flyPatternId, images }: PhotoGalleryProps) {
     <>
       <section>
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          Photos ({images.length})
+          Photos ({filteredImages.length})
         </h2>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {images.map((image) => (
+          {filteredImages.map((image) => (
             <button
               key={image.id}
               onClick={() => setSelectedImage(image)}

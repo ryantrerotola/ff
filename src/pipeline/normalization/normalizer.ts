@@ -39,6 +39,14 @@ const MATERIAL_TYPE_ALIASES: Record<string, string> = {
   chenille: "body",
   wire: "rib",
   tinsel: "rib",
+  ribbing: "rib",
+  "collar/hackle": "hackle",
+  "collar hackle": "hackle",
+  finishing: "other",
+  flashback: "body",
+  winging: "wing",
+  tailing: "tail",
+  weighting: "weight",
 };
 
 /**
