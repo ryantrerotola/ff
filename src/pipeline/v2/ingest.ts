@@ -166,7 +166,7 @@ export async function ingestV2Pattern(
             data: {
               materialId: originalMat.id,
               substituteMaterialId: substituteMat.id,
-              substitutionType: (sub.substitutionType || "equivalent") as SubstitutionType,
+              substitutionType: sanitizeSubstitutionType(sub.substitutionType),
               notes: sub.notes || "Discovered by v2 pipeline",
             },
           });
@@ -343,6 +343,13 @@ async function cachedFindOrCreateMaterial(
 
   cache.set(key, created);
   return created;
+}
+
+const VALID_SUBSTITUTION_TYPES = new Set(["equivalent", "budget", "aesthetic", "availability"]);
+
+function sanitizeSubstitutionType(raw: string | undefined): SubstitutionType {
+  if (raw && VALID_SUBSTITUTION_TYPES.has(raw)) return raw as SubstitutionType;
+  return "equivalent";
 }
 
 function guessMaterialType(name: string): string {
