@@ -92,6 +92,7 @@ export const SEED_PATTERNS: SeedPattern[] = [
   { name: "Black Beauty", category: "nymph" },
   { name: "Disco Midge", category: "nymph" },
   { name: "Dorsey's Mercury Midge", category: "nymph" },
+  { name: "Ray Charles", category: "nymph" },
   { name: "Micro Mayfly", category: "nymph" },
   { name: "Loebergs Drifter", category: "nymph" },
   { name: "Psycho Prince", category: "nymph" },
