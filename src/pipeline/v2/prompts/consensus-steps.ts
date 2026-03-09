@@ -43,7 +43,9 @@ Use the merge_steps tool to output the enhanced step sequence.`;
     })
     .join("\n\n");
 
-  return `Given these ${stepSources.length} different step-by-step tying instructions for the "${patternName}", create a single authoritative sequence that represents the consensus approach.
+  return `Given these ${stepSources.length} different step-by-step tying instructions for the "${patternName}", create a single authoritative sequence that represents the MAJORITY consensus approach.
+
+IMPORTANT: If a source includes materials or techniques that the other sources do NOT mention (e.g., a shellback, counter-wrapped wire, or unusual materials), OMIT those steps — they likely represent a variant, not the standard pattern. Only include steps/materials that appear in most sources.
 
 Preserve specific details (wrap counts, proportions, placement) from the most detailed sources. Include tips from any source.
 
