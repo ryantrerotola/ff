@@ -30,11 +30,12 @@ export function evaluateQuality(
     reasons.push("Missing pattern name");
   }
 
-  // Materials count
-  const requiredMaterials = consensus.materials.filter((m) => !m.optional);
-  if (requiredMaterials.length < gate.minMaterials) {
+  // Materials count — count ALL materials (including optional) for the minimum.
+  // Optional materials are still real recipe components, just not universally agreed upon.
+  const totalMaterials = consensus.materials.length;
+  if (totalMaterials < gate.minMaterials) {
     reasons.push(
-      `Only ${requiredMaterials.length} required materials (need ≥${gate.minMaterials})`
+      `Only ${totalMaterials} materials (need ≥${gate.minMaterials})`
     );
   }
 
@@ -115,7 +116,7 @@ export function evaluateQuality(
 
   // ── Scores ────────────────────────────────────────────────────────
 
-  const materialScore = Math.min(requiredMaterials.length / 6, 1);
+  const materialScore = Math.min(totalMaterials / 6, 1);
   const stepScore = Math.min(validSteps.length / 6, 1);
   const photoScore = Math.min(images.length / 2, 1);
   const sourceScore = Math.min(consensus.sourceCount / 4, 1);

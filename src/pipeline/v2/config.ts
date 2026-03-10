@@ -55,12 +55,25 @@ export const V2_CONFIG = {
   },
 
   consensus: {
-    /** Minimum source agreement for a material to be mandatory (0-1) */
-    materialThreshold: 0.75,
-    /** Minimum sources for a material to be included when below threshold */
-    optionalMinSources: 2,
-    /** Minimum agreement ratio to include an optional material (prevents outlier pollution) */
-    optionalMinAgreement: 0.5,
+    /**
+     * Binomial test parameters for material inclusion.
+     *
+     * Instead of arbitrary agreement thresholds, we test whether a material
+     * appears significantly more often than noise using a binomial test.
+     *
+     * noiseRate: expected rate of a spurious material (extraction error,
+     *   variant-specific ingredient). 15% is conservative — most noise
+     *   materials appear in only 1 source.
+     *
+     * mandatoryAlpha: significance level to mark a material as mandatory.
+     *   Lower = stricter. 0.01 means <1% chance this is noise.
+     *
+     * optionalAlpha: significance level to include as optional.
+     *   0.10 means <10% chance this is noise.
+     */
+    materialNoiseRate: 0.15,
+    materialMandatoryAlpha: 0.01,
+    materialOptionalAlpha: 0.10,
     /** Fuzzy match threshold for clustering material names */
     fuzzyMatchThreshold: 0.8,
     /** Minimum material overlap for a source to contribute tying steps */
@@ -88,7 +101,7 @@ export const V2_CONFIG = {
 
   qualityGate: {
     /** Minimum materials (including hook + thread) */
-    minMaterials: 4,
+    minMaterials: 3,
     /** Minimum tying steps */
     minSteps: 3,
     /** Minimum validated photos */
