@@ -214,19 +214,11 @@ function buildMaterialConsensus(extractions: V2ExtractedPattern[]): V2ConsensusM
       }
 
       // Even for the first slot of a type, if the entire type is mentioned by
-      // too few sources it's an outlier (e.g., 1/8 sources adds a wire rib).
-      // Require the type itself to meet the material threshold, or at minimum
-      // the optional agreement floor + minimum source count.
-      if (typeAgreement < V2_CONFIG.consensus.materialThreshold) {
-        if (sourcesWithType < V2_CONFIG.consensus.optionalMinSources) continue;
-        if (typeAgreement < V2_CONFIG.consensus.optionalMinAgreement) continue;
-      }
+      // fewer than half the sources, skip it entirely. A material type that
+      // the majority of sources don't mention is not part of the pattern.
+      if (typeAgreement < V2_CONFIG.consensus.materialThreshold) continue;
 
-      // Mark as optional if either: (a) extra slot beyond typical count, or
-      // (b) the entire type is below the majority threshold (minority type).
-      const isOptional =
-        (agreement < V2_CONFIG.consensus.materialThreshold && i >= slotsPerSource) ||
-        typeAgreement < V2_CONFIG.consensus.materialThreshold;
+      const isOptional = agreement < V2_CONFIG.consensus.materialThreshold && i >= slotsPerSource;
 
       const allGroupNames = group.members.map((m) => m.name);
       const bestName = pickMostCommon(allGroupNames);
