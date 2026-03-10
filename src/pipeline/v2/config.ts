@@ -55,12 +55,12 @@ export const V2_CONFIG = {
   },
 
   consensus: {
-    /** Minimum source agreement to include a material (0-1) */
-    materialThreshold: 0.5,
+    /** Minimum source agreement for a material to be mandatory (0-1) */
+    materialThreshold: 0.6,
     /** Minimum sources for a material to be included when below threshold */
     optionalMinSources: 2,
     /** Minimum agreement ratio to include an optional material (prevents outlier pollution) */
-    optionalMinAgreement: 0.3,
+    optionalMinAgreement: 0.4,
     /** Fuzzy match threshold for clustering material names */
     fuzzyMatchThreshold: 0.8,
   },

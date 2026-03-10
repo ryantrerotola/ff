@@ -194,6 +194,10 @@ function buildMaterialConsensus(extractions: V2ExtractedPattern[]): V2ConsensusM
       }))
       .sort((a, b) => b.uniqueSources - a.uniqueSources);
 
+    // How many sources mention this material type at all?
+    const sourcesWithType = new Set(mats.map((m) => m.sourceIndex)).size;
+    const typeAgreement = sourcesWithType / sourceCount;
+
     // Keep top N clusters (N = typical slots per source)
     // But also keep additional clusters that appear in ≥2 sources (marked optional)
     for (let i = 0; i < rankedGroups.length; i++) {
@@ -209,7 +213,14 @@ function buildMaterialConsensus(extractions: V2ExtractedPattern[]): V2ConsensusM
         if (agreement < V2_CONFIG.consensus.optionalMinAgreement) continue;
       }
 
-      const isOptional = agreement < V2_CONFIG.consensus.materialThreshold && i >= slotsPerSource;
+      // If the entire type is mentioned by fewer than 40% of sources, skip it.
+      // Between 40-60% it can exist but is marked optional.
+      // 60%+ is mandatory (if it's also the primary slot).
+      if (typeAgreement < V2_CONFIG.consensus.optionalMinAgreement) continue;
+
+      const isOptional =
+        typeAgreement < V2_CONFIG.consensus.materialThreshold ||
+        (agreement < V2_CONFIG.consensus.materialThreshold && i >= slotsPerSource);
 
       const allGroupNames = group.members.map((m) => m.name);
       const bestName = pickMostCommon(allGroupNames);
