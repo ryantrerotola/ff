@@ -84,7 +84,7 @@ export async function enrichExtraction(
 
     if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
       log.warn("No tool_use block from Sonnet, returning original extraction");
-      return fallbackResult(extraction);
+      return { ...fallbackResult(extraction), enrichedBySonnet: false };
     }
 
     const data = toolUseBlock.input as {
@@ -135,6 +135,7 @@ export async function enrichExtraction(
       qualityFlags: data.qualityFlags,
       suggestedSubstitutions: data.suggestedSubstitutions,
       scores: data.scores,
+      enrichedBySonnet: true,
     };
   } catch (err) {
     log.error("Enrichment failed, returning original", {
@@ -213,7 +214,7 @@ function quickQualityScore(ext: V2ExtractedPattern, source: ScrapedSource): numb
 function fallbackResult(extraction: V2ExtractedPattern): EnrichmentResult {
   return {
     enriched: extraction,
-    qualityFlags: [{ severity: "warning", message: "Sonnet enrichment failed, using raw extraction", field: "all" }],
+    qualityFlags: [{ severity: "warning", message: "Sonnet enrichment skipped, using raw extraction", field: "all" }],
     suggestedSubstitutions: [],
     scores: {
       materials: extraction.materials.length >= 4 ? 0.6 : 0.3,
@@ -221,5 +222,6 @@ function fallbackResult(extraction: V2ExtractedPattern): EnrichmentResult {
       description: extraction.description.length > 100 ? 0.6 : 0.3,
       overall: 0.4,
     },
+    enrichedBySonnet: false,
   };
 }
