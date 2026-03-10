@@ -220,7 +220,8 @@ async function runPatternPipeline(patternName: string): Promise<PatternPipelineR
   log.info(`[5/8] Building consensus`);
   const consensus = await buildV2Consensus(
     enrichments,
-    extractions.map((e) => e.source)
+    extractions.map((e) => e.source),
+    patternName
   );
 
   // Stage 6: Product Links

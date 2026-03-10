@@ -148,6 +148,8 @@ export interface EnrichmentResult {
     description: number;
     overall: number;
   };
+  /** Whether this was actually enriched by Sonnet (vs fallback from skipped/failed enrichment) */
+  enrichedBySonnet: boolean;
 }
 
 export interface QualityFlag {

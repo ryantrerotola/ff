@@ -3,7 +3,7 @@
  *
  * Key differences from v1:
  *   - No single-slot-per-type restriction on materials
- *   - Materials use ≥50% threshold (majority rule) with optional marking
+ *   - Materials use ≥75% threshold for mandatory, ≥50% for optional inclusion
  *   - Tying steps merged by Sonnet instead of picking best source
  *   - Substitutions include LLM-generated suggestions
  */
@@ -18,6 +18,11 @@ import {
   STEP_MERGE_TOOL,
   buildStepMergePrompt,
 } from "./prompts/consensus-steps";
+import {
+  RECIPE_CHECK_SYSTEM_PROMPT,
+  RECIPE_CHECK_TOOL,
+  buildRecipeCheckPrompt,
+} from "./prompts/recipe-check";
 import type {
   V2ExtractedPattern,
   V2ConsensusMaterial,
@@ -46,11 +51,51 @@ function getClient(): Anthropic {
  */
 export async function buildV2Consensus(
   enrichments: EnrichmentResult[],
-  sources: ScrapedSource[]
+  sources: ScrapedSource[],
+  patternQuery?: string
 ): Promise<V2ConsensusPattern> {
   if (enrichments.length === 0) {
     throw new Error("Cannot build consensus from empty enrichments");
   }
+
+  // Filter out sources whose extracted pattern name doesn't match the query.
+  // This prevents e.g. "Parachute Adams" from polluting "Adams" consensus.
+  let filteredEnrichments = enrichments;
+  let filteredSources = sources;
+  if (patternQuery) {
+    const queryLower = patternQuery.toLowerCase();
+    const relevant: boolean[] = enrichments.map((e) => {
+      const name = e.enriched.patternName.toLowerCase();
+      // Accept if the extracted name contains the query or vice versa,
+      // or if they share high similarity
+      return (
+        name.includes(queryLower) ||
+        queryLower.includes(name) ||
+        combinedSimilarity(name, queryLower) > 0.5
+      );
+    });
+
+    const relevantCount = relevant.filter(Boolean).length;
+    if (relevantCount >= 2) {
+      // Only filter if we'd keep enough sources
+      filteredEnrichments = enrichments.filter((_, i) => relevant[i]);
+      filteredSources = sources.filter((_, i) => relevant[i]);
+      if (relevantCount < enrichments.length) {
+        log.info("Filtered irrelevant pattern names", {
+          query: patternQuery,
+          kept: String(relevantCount),
+          removed: String(enrichments.length - relevantCount),
+          removedNames: enrichments
+            .filter((_, i) => !relevant[i])
+            .map((e) => e.enriched.patternName)
+            .join(", "),
+        });
+      }
+    }
+  }
+
+  enrichments = filteredEnrichments;
+  sources = filteredSources;
 
   const extractions = enrichments.map((e) => e.enriched);
   const sourceCount = extractions.length;
@@ -71,8 +116,25 @@ export async function buildV2Consensus(
   // Origin: first non-null
   const origin = extractions.find((e) => e.origin)?.origin ?? null;
 
-  // Materials: enhanced consensus with optional marking
-  const materials = buildMaterialConsensus(extractions);
+  // Materials: use only Sonnet-enriched sources for consensus (higher quality).
+  // Fall back to all sources if fewer than 2 were enriched.
+  const enrichedExtractions = enrichments
+    .filter((e) => e.enrichedBySonnet)
+    .map((e) => e.enriched);
+  const materialExtractions = enrichedExtractions.length >= 2 ? enrichedExtractions : extractions;
+
+  if (enrichedExtractions.length < extractions.length) {
+    log.info("Material consensus source filtering", {
+      total: String(extractions.length),
+      enriched: String(enrichedExtractions.length),
+      using: String(materialExtractions.length),
+    });
+  }
+
+  let materials = buildMaterialConsensus(materialExtractions);
+
+  // Sanity-check the recipe with a cheap Haiku call
+  materials = await sanityCheckRecipe(patternName, category.value, materials);
 
   // Variations: merge explicit + detect from source disagreements
   const variations = buildVariationConsensus(extractions, category.value);
@@ -96,17 +158,20 @@ export async function buildV2Consensus(
     return overlap / srcMats.length;
   });
 
-  const filteredEnrichments = enrichments.filter((_, i) => agreementBySource[i]! >= 0.4);
-  const filteredSources = sources.filter((_, i) => agreementBySource[i]! >= 0.4);
+  const stepMinAgreement = V2_CONFIG.consensus.stepSourceMinAgreement;
+  const stepFilteredEnrichments = enrichments.filter((_, i) => agreementBySource[i]! >= stepMinAgreement);
+  const stepFilteredSources = sources.filter((_, i) => agreementBySource[i]! >= stepMinAgreement);
+  const stepFilteredAgreements = agreementBySource.filter((a) => a >= stepMinAgreement);
 
-  if (filteredEnrichments.length === 0) {
+  if (stepFilteredEnrichments.length === 0) {
     // Fallback: use all if filtering removed everything
     log.warn("All sources filtered for step merge, using all", { pattern: patternName });
   }
 
-  const stepEnrichments = filteredEnrichments.length > 0 ? filteredEnrichments : enrichments;
-  const stepSources = filteredEnrichments.length > 0 ? filteredSources : sources;
-  const tyingSteps = await mergeStepsWithSonnet(patternName, stepEnrichments, stepSources);
+  const stepEnrichments = stepFilteredEnrichments.length > 0 ? stepFilteredEnrichments : enrichments;
+  const stepSources = stepFilteredEnrichments.length > 0 ? stepFilteredSources : sources;
+  const stepAgreements = stepFilteredEnrichments.length > 0 ? stepFilteredAgreements : agreementBySource;
+  const tyingSteps = await mergeStepsWithSonnet(patternName, stepEnrichments, stepSources, stepAgreements, materials);
 
   // Overall confidence
   const overallConfidence = calculateOverallConfidence(
@@ -213,9 +278,9 @@ function buildMaterialConsensus(extractions: V2ExtractedPattern[]): V2ConsensusM
         if (agreement < V2_CONFIG.consensus.optionalMinAgreement) continue;
       }
 
-      // If the entire type is mentioned by fewer than 40% of sources, skip it.
-      // Between 40-60% it can exist but is marked optional.
-      // 60%+ is mandatory (if it's also the primary slot).
+      // If the entire type is mentioned by fewer than 50% of sources, skip it.
+      // Between 50-75% it can exist but is marked optional.
+      // 75%+ is mandatory (if it's also the primary slot).
       if (typeAgreement < V2_CONFIG.consensus.optionalMinAgreement) continue;
 
       const isOptional =
@@ -264,6 +329,103 @@ function buildMaterialConsensus(extractions: V2ExtractedPattern[]): V2ConsensusM
   consensusMaterials.forEach((m, i) => { m.position = i + 1; });
 
   return consensusMaterials;
+}
+
+// ─── Recipe Sanity Check (Haiku) ──────────────────────────────────────────
+
+/**
+ * Make a cheap Haiku call to sanity-check the consensus material list.
+ * Removes materials that Haiku flags as clearly wrong for this pattern,
+ * and logs warnings for other issues.
+ */
+async function sanityCheckRecipe(
+  patternName: string,
+  category: string,
+  materials: V2ConsensusMaterial[]
+): Promise<V2ConsensusMaterial[]> {
+  try {
+    const anthropic = getClient();
+
+    const response = await anthropic.messages.create({
+      model: V2_CONFIG.models.extraction, // Haiku — cheap
+      max_tokens: 1024,
+      system: RECIPE_CHECK_SYSTEM_PROMPT,
+      tools: [RECIPE_CHECK_TOOL],
+      tool_choice: { type: "tool", name: "validate_recipe" },
+      messages: [
+        {
+          role: "user",
+          content: buildRecipeCheckPrompt(patternName, category, materials),
+        },
+      ],
+    });
+
+    const toolUseBlock = response.content.find((b: { type: string }) => b.type === "tool_use");
+    if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
+      return materials;
+    }
+
+    const data = toolUseBlock.input as {
+      isValid: boolean;
+      issues: { severity: string; issue: string; materialName: string | null; suggestion: string }[];
+    };
+
+    if (data.isValid && data.issues.length === 0) {
+      log.success("Recipe sanity check passed", { pattern: patternName });
+      return materials;
+    }
+
+    // Log all issues
+    for (const issue of data.issues) {
+      const level = issue.severity === "error" ? "warn" : "info";
+      log[level](`Recipe check: ${issue.issue}`, {
+        pattern: patternName,
+        material: issue.materialName ?? "n/a",
+        suggestion: issue.suggestion,
+      });
+    }
+
+    // Remove materials flagged as errors with "remove" suggestion
+    const toRemove = new Set(
+      data.issues
+        .filter(
+          (i) =>
+            i.severity === "error" &&
+            i.materialName &&
+            i.suggestion.toLowerCase().includes("remove")
+        )
+        .map((i) => i.materialName!.toLowerCase())
+    );
+
+    if (toRemove.size > 0) {
+      const before = materials.length;
+      materials = materials.filter(
+        (m) => ![...toRemove].some(
+          (flagged) =>
+            flagged === m.name.toLowerCase() ||
+            combinedSimilarity(flagged, m.name.toLowerCase()) > 0.7
+        )
+      );
+      // Re-number positions
+      materials.forEach((m, i) => { m.position = i + 1; });
+
+      log.info("Removed flagged materials", {
+        pattern: patternName,
+        removed: [...toRemove].join(", "),
+        before: String(before),
+        after: String(materials.length),
+      });
+    }
+
+    return materials;
+  } catch (err) {
+    // Non-critical — if the check fails, just use the original materials
+    log.warn("Recipe sanity check failed, using original materials", {
+      pattern: patternName,
+      error: String(err),
+    });
+    return materials;
+  }
 }
 
 /**
@@ -419,16 +581,18 @@ function splitByPosition(
 async function mergeStepsWithSonnet(
   patternName: string,
   enrichments: EnrichmentResult[],
-  sources: ScrapedSource[]
+  sources: ScrapedSource[],
+  agreementScores: number[],
+  consensusMaterials: V2ConsensusMaterial[]
 ): Promise<V2ExtractedStep[]> {
   // Collect step sequences from enrichments that have steps
-  const stepSources: { sourceName: string; steps: V2ExtractedStep[] }[] = [];
+  const stepSources: { sourceName: string; steps: V2ExtractedStep[]; agreement: number }[] = [];
 
   for (let i = 0; i < enrichments.length; i++) {
     const steps = enrichments[i]!.enriched.tyingSteps;
     if (steps && steps.length > 0) {
       const sourceName = sources[i]?.platform ?? `Source ${i + 1}`;
-      stepSources.push({ sourceName, steps });
+      stepSources.push({ sourceName, steps, agreement: agreementScores[i] ?? 0 });
     }
   }
 
@@ -454,7 +618,7 @@ async function mergeStepsWithSonnet(
       messages: [
         {
           role: "user",
-          content: buildStepMergePrompt(patternName, stepSources),
+          content: buildStepMergePrompt(patternName, stepSources, consensusMaterials),
         },
       ],
     });
@@ -484,14 +648,19 @@ async function mergeStepsWithSonnet(
 }
 
 function pickBestSteps(
-  stepSources: { sourceName: string; steps: V2ExtractedStep[] }[]
+  stepSources: { sourceName: string; steps: V2ExtractedStep[]; agreement?: number }[]
 ): V2ExtractedStep[] {
   let best = stepSources[0]!.steps;
   let bestScore = 0;
 
   for (const source of stepSources) {
-    const score = source.steps.length * 10 +
-      source.steps.reduce((sum, s) => sum + (s.instruction?.length ?? 0), 0);
+    // Heavily weight agreement with consensus materials (0-1 scaled to 0-100),
+    // then use step detail as tiebreaker
+    const agreementWeight = (source.agreement ?? 0) * 100;
+    const detailWeight =
+      (source.steps.length * 2 +
+        source.steps.reduce((sum, s) => sum + Math.min(s.instruction?.length ?? 0, 500), 0) / 50);
+    const score = agreementWeight + detailWeight;
     if (score > bestScore) {
       bestScore = score;
       best = source.steps;
