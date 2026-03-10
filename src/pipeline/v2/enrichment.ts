@@ -84,7 +84,7 @@ export async function enrichExtraction(
 
     if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
       log.warn("No tool_use block from Sonnet, returning original extraction");
-      return { ...fallbackResult(extraction), enrichedBySonnet: false };
+      return fallbackResult(extraction);
     }
 
     const data = toolUseBlock.input as {

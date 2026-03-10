@@ -19,7 +19,8 @@ export function buildRecipeCheckPrompt(
     .map((m) => {
       const color = m.color ? ` (${m.color})` : "";
       const opt = m.optional ? " [optional]" : "";
-      return `- ${m.type}: ${m.name}${color}${opt} — ${m.sourceCount} of ${Math.round(m.sourceCount / m.sourceAgreement)} sources`;
+      const totalSources = m.sourceAgreement > 0 ? Math.round(m.sourceCount / m.sourceAgreement) : m.sourceCount;
+      return `- ${m.type}: ${m.name}${color}${opt} — ${m.sourceCount} of ${totalSources} sources`;
     })
     .join("\n");
 

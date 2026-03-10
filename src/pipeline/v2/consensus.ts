@@ -400,7 +400,11 @@ async function sanityCheckRecipe(
     if (toRemove.size > 0) {
       const before = materials.length;
       materials = materials.filter(
-        (m) => !toRemove.has(m.name.toLowerCase())
+        (m) => ![...toRemove].some(
+          (flagged) =>
+            flagged === m.name.toLowerCase() ||
+            combinedSimilarity(flagged, m.name.toLowerCase()) > 0.7
+        )
       );
       // Re-number positions
       materials.forEach((m, i) => { m.position = i + 1; });
