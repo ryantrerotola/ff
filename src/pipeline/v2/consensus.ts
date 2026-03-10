@@ -12,6 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { V2_CONFIG } from "./config";
 import { slugify } from "../utils/slug";
 import { combinedSimilarity } from "../normalization/matcher";
+import { testMaterialSignificance } from "../utils/binomial";
 import { createLogger } from "../utils/logger";
 import {
   STEP_MERGE_SYSTEM_PROMPT,
@@ -261,31 +262,36 @@ function buildMaterialConsensus(extractions: V2ExtractedPattern[]): V2ConsensusM
 
     // How many sources mention this material type at all?
     const sourcesWithType = new Set(mats.map((m) => m.sourceIndex)).size;
-    const typeAgreement = sourcesWithType / sourceCount;
+
+    const { materialNoiseRate, materialMandatoryAlpha, materialOptionalAlpha } = V2_CONFIG.consensus;
+
+    // Test whether the *type itself* is statistically significant
+    const typeSig = testMaterialSignificance(
+      sourcesWithType, sourceCount, materialNoiseRate, materialMandatoryAlpha, materialOptionalAlpha
+    );
+    if (!typeSig.include) continue; // Entire type is noise
 
     // Keep top N clusters (N = typical slots per source)
-    // But also keep additional clusters that appear in ≥2 sources (marked optional)
+    // Additional clusters must pass the binomial test independently
     for (let i = 0; i < rankedGroups.length; i++) {
       const group = rankedGroups[i]!;
       const freq = group.uniqueSources;
       const agreement = freq / sourceCount;
 
-      // For materials beyond the typical slot count, require both a minimum
-      // source count AND a minimum agreement ratio to prevent outlier pollution.
-      // e.g., 2/8 sources = 25% agreement — too low to include as even optional.
+      // For materials beyond the typical slot count, they must independently
+      // pass the binomial significance test
       if (i >= slotsPerSource) {
-        if (freq < V2_CONFIG.consensus.optionalMinSources) continue;
-        if (agreement < V2_CONFIG.consensus.optionalMinAgreement) continue;
+        const clusterSig = testMaterialSignificance(
+          freq, sourceCount, materialNoiseRate, materialMandatoryAlpha, materialOptionalAlpha
+        );
+        if (!clusterSig.include) continue;
       }
 
-      // If the entire type is mentioned by fewer than 50% of sources, skip it.
-      // Between 50-75% it can exist but is marked optional.
-      // 75%+ is mandatory (if it's also the primary slot).
-      if (typeAgreement < V2_CONFIG.consensus.optionalMinAgreement) continue;
-
-      const isOptional =
-        typeAgreement < V2_CONFIG.consensus.materialThreshold ||
-        (agreement < V2_CONFIG.consensus.materialThreshold && i >= slotsPerSource);
+      // Determine mandatory vs optional using the binomial test
+      const sig = testMaterialSignificance(
+        freq, sourceCount, materialNoiseRate, materialMandatoryAlpha, materialOptionalAlpha
+      );
+      const isOptional = !sig.mandatory || !typeSig.mandatory;
 
       const allGroupNames = group.members.map((m) => m.name);
       const bestName = pickMostCommon(allGroupNames);
