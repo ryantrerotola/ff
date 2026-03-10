@@ -3,7 +3,7 @@
  *
  * Key differences from v1:
  *   - No single-slot-per-type restriction on materials
- *   - Materials use ≥50% threshold (majority rule) with optional marking
+ *   - Materials use ≥75% threshold for mandatory, ≥50% for optional inclusion
  *   - Tying steps merged by Sonnet instead of picking best source
  *   - Substitutions include LLM-generated suggestions
  */
@@ -96,8 +96,10 @@ export async function buildV2Consensus(
     return overlap / srcMats.length;
   });
 
-  const filteredEnrichments = enrichments.filter((_, i) => agreementBySource[i]! >= 0.4);
-  const filteredSources = sources.filter((_, i) => agreementBySource[i]! >= 0.4);
+  const stepMinAgreement = V2_CONFIG.consensus.stepSourceMinAgreement;
+  const filteredEnrichments = enrichments.filter((_, i) => agreementBySource[i]! >= stepMinAgreement);
+  const filteredSources = sources.filter((_, i) => agreementBySource[i]! >= stepMinAgreement);
+  const filteredAgreements = agreementBySource.filter((a) => a >= stepMinAgreement);
 
   if (filteredEnrichments.length === 0) {
     // Fallback: use all if filtering removed everything
@@ -106,7 +108,8 @@ export async function buildV2Consensus(
 
   const stepEnrichments = filteredEnrichments.length > 0 ? filteredEnrichments : enrichments;
   const stepSources = filteredEnrichments.length > 0 ? filteredSources : sources;
-  const tyingSteps = await mergeStepsWithSonnet(patternName, stepEnrichments, stepSources);
+  const stepAgreements = filteredEnrichments.length > 0 ? filteredAgreements : agreementBySource;
+  const tyingSteps = await mergeStepsWithSonnet(patternName, stepEnrichments, stepSources, stepAgreements);
 
   // Overall confidence
   const overallConfidence = calculateOverallConfidence(
@@ -213,9 +216,9 @@ function buildMaterialConsensus(extractions: V2ExtractedPattern[]): V2ConsensusM
         if (agreement < V2_CONFIG.consensus.optionalMinAgreement) continue;
       }
 
-      // If the entire type is mentioned by fewer than 40% of sources, skip it.
-      // Between 40-60% it can exist but is marked optional.
-      // 60%+ is mandatory (if it's also the primary slot).
+      // If the entire type is mentioned by fewer than 50% of sources, skip it.
+      // Between 50-75% it can exist but is marked optional.
+      // 75%+ is mandatory (if it's also the primary slot).
       if (typeAgreement < V2_CONFIG.consensus.optionalMinAgreement) continue;
 
       const isOptional =
@@ -419,16 +422,17 @@ function splitByPosition(
 async function mergeStepsWithSonnet(
   patternName: string,
   enrichments: EnrichmentResult[],
-  sources: ScrapedSource[]
+  sources: ScrapedSource[],
+  agreementScores: number[]
 ): Promise<V2ExtractedStep[]> {
   // Collect step sequences from enrichments that have steps
-  const stepSources: { sourceName: string; steps: V2ExtractedStep[] }[] = [];
+  const stepSources: { sourceName: string; steps: V2ExtractedStep[]; agreement: number }[] = [];
 
   for (let i = 0; i < enrichments.length; i++) {
     const steps = enrichments[i]!.enriched.tyingSteps;
     if (steps && steps.length > 0) {
       const sourceName = sources[i]?.platform ?? `Source ${i + 1}`;
-      stepSources.push({ sourceName, steps });
+      stepSources.push({ sourceName, steps, agreement: agreementScores[i] ?? 0 });
     }
   }
 

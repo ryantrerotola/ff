@@ -17,7 +17,7 @@ Guidelines:
 
 export function buildStepMergePrompt(
   patternName: string,
-  stepSources: { sourceName: string; steps: { title: string; instruction: string; tip: string | null }[] }[]
+  stepSources: { sourceName: string; steps: { title: string; instruction: string; tip: string | null }[]; agreement?: number }[]
 ): string {
   if (stepSources.length === 1) {
     const source = stepSources[0]!;
@@ -34,20 +34,27 @@ ${stepsText}
 Use the merge_steps tool to output the enhanced step sequence.`;
   }
 
-  const sourcesText = stepSources
+  // Sort sources by agreement so highest-agreement sources are listed first
+  const sorted = [...stepSources].sort((a, b) => (b.agreement ?? 0) - (a.agreement ?? 0));
+
+  const sourcesText = sorted
     .map((source, i) => {
+      const agreementPct = source.agreement != null ? ` — ${Math.round(source.agreement * 100)}% material agreement` : "";
       const stepsText = source.steps
         .map((s, j) => `  ${j + 1}. ${s.title}: ${s.instruction}${s.tip ? ` (Tip: ${s.tip})` : ""}`)
         .join("\n");
-      return `SOURCE ${i + 1} (${source.sourceName}):\n${stepsText}`;
+      return `SOURCE ${i + 1} (${source.sourceName}${agreementPct}):\n${stepsText}`;
     })
     .join("\n\n");
 
   return `Given these ${stepSources.length} different step-by-step tying instructions for the "${patternName}", create a single authoritative sequence that represents the MAJORITY consensus approach.
 
-IMPORTANT: If a source includes materials or techniques that the other sources do NOT mention (e.g., a shellback, counter-wrapped wire, or unusual materials), OMIT those steps — they likely represent a variant, not the standard pattern. Only include steps/materials that appear in most sources.
+IMPORTANT:
+- Each source has a "material agreement" percentage indicating how closely its materials match the consensus recipe. PRIORITIZE sources with higher agreement — they are more likely to represent the standard pattern.
+- If a source includes materials or techniques that the other sources do NOT mention (e.g., a shellback, counter-wrapped wire, or unusual materials), OMIT those steps — they likely represent a variant, not the standard pattern.
+- Only include steps/materials that appear in most sources. When sources conflict, follow the majority and favor higher-agreement sources.
 
-Preserve specific details (wrap counts, proportions, placement) from the most detailed sources. Include tips from any source.
+Preserve specific details (wrap counts, proportions, placement) from the most detailed high-agreement sources. Include tips from any source.
 
 ${sourcesText}
 
