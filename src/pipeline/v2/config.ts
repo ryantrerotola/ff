@@ -88,7 +88,7 @@ export const V2_CONFIG = {
 
   qualityGate: {
     /** Minimum materials (including hook + thread) */
-    minMaterials: 4,
+    minMaterials: 3,
     /** Minimum tying steps */
     minSteps: 3,
     /** Minimum validated photos */
