@@ -72,8 +72,8 @@ export const V2_CONFIG = {
      *   0.10 means <10% chance this is noise.
      */
     materialNoiseRate: 0.15,
-    materialMandatoryAlpha: 0.01,
-    materialOptionalAlpha: 0.10,
+    materialMandatoryAlpha: 0.05,
+    materialOptionalAlpha: 0.20,
     /** Fuzzy match threshold for clustering material names */
     fuzzyMatchThreshold: 0.8,
     /** Minimum material overlap for a source to contribute tying steps */
